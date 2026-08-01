@@ -43,9 +43,21 @@ jobs:
       - name: Test
         run: node dist/tests/run.js
 
+      # Only what the page actually loads. Publishing the whole directory would put
+      # the test suite, the Python data pipeline and the build config on the public
+      # site, none of which it needs. src/ is kept so the source maps in dist/
+      # resolve when someone opens devtools.
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/dist
+          cp index.html style.css _site/
+          cp -r data _site/data
+          cp -r src _site/src
+          cp -r dist/src _site/dist/src
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: project/tickread/code
+          path: project/tickread/code/_site
 
   deploy:
     needs: build

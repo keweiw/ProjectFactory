@@ -1,6 +1,9 @@
 # Compiled TypeScript. The Pages workflow builds this; it is never committed.
 dist/
 
+# Staging directory the Pages workflow assembles before uploading.
+_site/
+
 # Fetched raw bars. Large, regenerable, and not part of the shipped bank.
 scripts/.cache/
 
