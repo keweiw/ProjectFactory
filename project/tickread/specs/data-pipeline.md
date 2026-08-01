@@ -13,8 +13,12 @@ This runs on the developer's machine, never in CI and never in the browser. Its
 output is committed to the repo; the app has no other data source.
 
 Covers three scripts and their shared universe file:
-`scripts/fetch_stooq.py`, `scripts/fetch_polygon.py`, `scripts/build_deck.py`,
+`scripts/fetch_yahoo.py`, `scripts/fetch_polygon.py`, `scripts/build_deck.py`,
 `scripts/universe.json`.
+
+`fetch_yahoo.py` is the primary fetcher and needs no API key; it covers every
+timeframe and asset class. `fetch_polygon.py` is optional and only deepens `1m`
+history from seven days to two years when `POLYGON_API_KEY` is set.
 
 ## Interfaces
 
@@ -171,10 +175,17 @@ reason; none may be dropped without raising it with the human.
 
 | Rule | Reason |
 |---|---|
-| `abs(future[-1].c / setup[-1].c - 1) < 0.0005` | A coin flip dressed as a question |
-| Any bar in setup or future has `v <= 0`, or volume is missing | The volume panel is core to the question; Stooq returns zero volume for some futures and crypto symbols |
+| `abs(future[-1].c - setup[-1].c) < 0.0005 * setup[-1].c` | A coin flip dressed as a question |
+| Any bar in setup or future has `v <= 0`, or volume is missing | The volume panel is core to the question; Yahoo returns zero volume for much of its crypto and futures intraday data |
 | Any bar has `h < l`, or `c`/`o` outside `[l, h]`, or any non-positive price | Corrupt source data |
-| The window spans a gap of more than 5× the series' median bar interval | A hidden halt or listing gap would render as a misleading flat stretch |
+| The window spans a gap of more than 5× the series' **95th-percentile** bar gap | A hidden halt or data hole would render as a misleading flat stretch |
+
+The gap rule uses the 95th percentile, not the median. With the median it deleted an
+entire timeframe in silence: the median gap between hourly bars is one hour, but
+sixty hourly bars span roughly nine trading days for an equity, so every window
+contained an overnight close and every hourly window was rejected. The percentile
+absorbs whatever session structure an instrument actually has — overnight closes for
+equities, nothing for 24/7 crypto — leaving only genuine holes visible.
 
 ### Anonymisation
 

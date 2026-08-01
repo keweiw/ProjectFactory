@@ -1,0 +1,18 @@
+{
+  "equity": {
+    "yahoo": ["AAPL", "MSFT", "NVDA", "TSLA", "JPM", "XOM", "KO", "PFE"],
+    "polygon": ["AAPL", "MSFT", "NVDA", "TSLA"]
+  },
+  "etf_index": {
+    "yahoo": ["SPY", "QQQ", "IWM", "XLF", "XLE", "GLD"],
+    "polygon": ["SPY", "QQQ", "IWM"]
+  },
+  "future": {
+    "yahoo": ["CL=F", "GC=F", "SI=F", "NG=F", "HG=F", "ZC=F", "ZS=F", "ES=F"],
+    "polygon": []
+  },
+  "crypto": {
+    "yahoo": ["BTC-USD", "ETH-USD", "SOL-USD"],
+    "polygon": ["X:BTCUSD", "X:ETHUSD"]
+  }
+}

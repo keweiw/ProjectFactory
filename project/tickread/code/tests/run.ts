@@ -9,6 +9,8 @@ import "./stats.test.js";
 import "./persona.test.js";
 import "./session.test.js";
 import "./storage.test.js";
+import "./deck.test.js";
+import "./chart.test.js";
 
 async function main(): Promise<void> {
   const results = await runAll();

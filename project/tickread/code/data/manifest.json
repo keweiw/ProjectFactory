@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-01T23:04:02+00:00",
+  "setupLength": 60,
+  "shards": [
+    {
+      "timeframe": "1m",
+      "file": "questions-1m.json",
+      "count": 342,
+      "assetClasses": [
+        "equity",
+        "etf_index",
+        "future"
+      ],
+      "horizons": [
+        1,
+        5,
+        20
+      ]
+    },
+    {
+      "timeframe": "1h",
+      "file": "questions-1h.json",
+      "count": 228,
+      "assetClasses": [
+        "equity",
+        "etf_index"
+      ],
+      "horizons": [
+        1,
+        5,
+        20
+      ]
+    },
+    {
+      "timeframe": "1d",
+      "file": "questions-1d.json",
+      "count": 456,
+      "assetClasses": [
+        "crypto",
+        "equity",
+        "etf_index",
+        "future"
+      ],
+      "horizons": [
+        1,
+        5,
+        20
+      ]
+    },
+    {
+      "timeframe": "1mo",
+      "file": "questions-1mo.json",
+      "count": 314,
+      "assetClasses": [
+        "crypto",
+        "equity",
+        "etf_index",
+        "future"
+      ],
+      "horizons": [
+        1,
+        5,
+        20
+      ]
+    }
+  ]
+}

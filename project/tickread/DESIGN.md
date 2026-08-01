@@ -55,18 +55,40 @@ so a missing data entitlement degrades coverage instead of breaking the app.
 
 | Timeframe | Source | Notes |
 |---|---|---|
-| `1m`, `1h` | Polygon | 2 years of intraday is ample — one ticker yields hundreds of thousands of bars |
-| `1d` | Stooq | Free CSV, no key, decades of history |
-| `1mo` | Stooq | **Aggregated locally from daily bars**, not fetched separately |
+| `1m` | Yahoo | 7 days — thousands of bars per symbol, plenty of windows |
+| `1h` | Yahoo | 730 days |
+| `1d` | Yahoo | Full history: 45 years for AAPL, 26 for the futures |
+| `1mo` | Yahoo | **Aggregated locally from daily bars**, not fetched separately |
 
-Polygon's free tier gives 2 years of history, which is only ~24 monthly bars — far
-short of the 80 a monthly question needs. Hence the split: Polygon for intraday
-depth, Stooq for long history.
+Yahoo Finance's chart endpoint covers every timeframe and every asset class with no
+API key, so it is the primary and only required source.
 
-Scripts use the **Python standard library only** (`urllib`, `csv`, `json`). No
+Stooq was the original choice for daily history but now gates the endpoint behind a
+JavaScript proof-of-work browser check. This pipeline does not attempt to defeat it.
+
+**Polygon is optional.** With `POLYGON_API_KEY` set, `fetch_polygon.py` adds two
+years of minute bars instead of Yahoo's seven days. Without it the build is
+complete and nothing is missing; coverage is simply shallower on `1m`.
+
+Scripts use the **Python standard library only** (`urllib`, `json`, `hashlib`). No
 `requests`, no `yfinance`, no pip installs.
 
-### Polygon constraints
+### Trusting nothing about what comes back
+
+Two failures found by running the pipeline, both silent, now have guards:
+
+- **Yahoo answers the wrong granularity.** Requesting `interval=1d&range=max`
+  returns *monthly or quarterly* bars — AAPL came back with a 91-day median gap —
+  labelled identically to the daily series that was asked for. Cached as `1d`, those
+  bars would have flowed into the bank as charts the user is told are daily, and the
+  monthly aggregation would have compounded the error. The fetcher now requests an
+  explicit `period1`/`period2` window and **measures the median gap of what it got**,
+  refusing to cache anything whose spacing does not match the timeframe requested.
+- **Full-history responses truncate.** Multi-megabyte chunked responses
+  intermittently raise `IncompleteRead`. That is now retried, because a transient
+  truncation and a genuinely missing symbol call for different responses.
+
+### Polygon constraints (only when a key is configured)
 
 - **5 requests/minute.** The fetcher sleeps between calls and backs off on HTTP 429.
 - **Resumable.** Each response is cached to `scripts/.cache/<key>.json`; a re-run
@@ -79,14 +101,13 @@ Scripts use the **Python standard library only** (`urllib`, `csv`, `json`). No
 - **The API key is read from the `POLYGON_API_KEY` environment variable.** It is
   never written to disk, never committed, and never reaches the browser.
 
-### Stooq constraints
+### Volume
 
-- Daily CSV endpoint returns `Date,Open,High,Low,Close,Volume`.
-- Futures and crypto symbols sometimes return **zero or missing volume**. Since the
-  volume panel is core to the question, any window with missing or all-zero volume
-  is **rejected at build time**.
-- The symbol list lives in `scripts/universe.json`. The fetcher validates every
-  symbol and reports which ones returned no data rather than failing silently.
+Yahoo returns **zero volume** for a large share of crypto and futures intraday
+bars — only 2,658 of BTC-USD's 10,015 minute bars carry any. Since the volume panel
+is half the question, any window containing a zero-volume bar is rejected at build
+time. The visible consequence is that crypto has no `1m` or `1h` questions, which
+the manifest records and the UI respects.
 
 ### Monthly aggregation
 
@@ -137,8 +158,9 @@ least **30 bars apart**, so the bank does not fill with near-duplicate charts.
 
 ### Payload
 
-Target ~1500 questions. Prices are rounded to 4 significant figures and volumes to
-integers. Sharded by timeframe into four files. Roughly 3.5 MB raw, ~1 MB gzipped.
+The built bank holds **1,340 questions**: 342 at `1m`, 228 at `1h`, 456 at `1d`,
+314 at `1mo`. Prices are rounded to 4 significant figures and volumes to integers.
+Sharded by timeframe into four files — 5.0 MB raw, **1.24 MB gzipped**, measured.
 
 All shards are loaded at the start of a round, in parallel. Loading only the shards
 a round draws from would be smaller, but stratified sampling needs the full pool up
