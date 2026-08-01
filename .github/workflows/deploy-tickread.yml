@@ -1,0 +1,58 @@
+name: Deploy tickread
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "project/tickread/code/**"
+      - ".github/workflows/deploy-tickread.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; a queued one supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: project/tickread/code
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # typescript is the only build dependency. The app itself has none, which is
+      # why there is no npm install step and no lockfile.
+      - name: Install the compiler
+        run: npm install -g typescript@7.0.2
+
+      - name: Compile
+        run: tsc -p .
+
+      - name: Test
+        run: node dist/tests/run.js
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: project/tickread/code
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

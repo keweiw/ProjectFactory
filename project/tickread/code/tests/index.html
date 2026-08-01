@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tickread tests</title>
+    <style>
+      body {
+        font: 14px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+        margin: 2rem;
+        max-width: 60rem;
+      }
+      h1 { font-size: 1.1rem; }
+      #summary { font-size: 1.1rem; font-weight: 600; margin: 1rem 0; }
+      .pass { color: #22a06b; }
+      .fail { color: #d1495b; }
+      ol { padding-left: 2rem; }
+      li { margin: 0.15rem 0; }
+      .error { color: #d1495b; white-space: pre-wrap; margin-left: 1rem; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #16171a; color: #e9e9e6; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>tickread unit tests</h1>
+    <p>
+      The same suite that <code>node dist/tests/run.js</code> runs, executed in a
+      browser. Serve this over HTTP — <code>file://</code> blocks ES modules.
+    </p>
+    <div id="summary">Running…</div>
+    <ol id="results"></ol>
+
+    <script type="module">
+      import { runAll, summarise } from "../dist/tests/harness.js";
+      import "../dist/tests/stats.test.js";
+      import "../dist/tests/persona.test.js";
+      import "../dist/tests/session.test.js";
+      import "../dist/tests/storage.test.js";
+      import "../dist/tests/deck.test.js";
+      import "../dist/tests/chart.test.js";
+      import "../dist/tests/app.test.js";
+
+      const results = await runAll();
+      const { passed, failed } = summarise(results);
+
+      const summary = document.getElementById("summary");
+      summary.textContent = `${passed} passed, ${failed} failed, ${results.length} total`;
+      summary.className = failed === 0 ? "pass" : "fail";
+
+      const list = document.getElementById("results");
+      for (const result of results) {
+        const item = document.createElement("li");
+        item.className = result.passed ? "pass" : "fail";
+        item.textContent = `${result.passed ? "ok" : "FAIL"}  ${result.name}`;
+        if (!result.passed) {
+          const detail = document.createElement("div");
+          detail.className = "error";
+          detail.textContent = result.error;
+          item.appendChild(detail);
+        }
+        list.appendChild(item);
+      }
+    </script>
+  </body>
+</html>

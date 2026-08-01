@@ -1,0 +1,169 @@
+/**
+ * End-to-end check against the real question bank, over HTTP.
+ *
+ * Separate from the unit suite because it needs a static server running:
+ *
+ *     python -m http.server 8765 --bind 127.0.0.1
+ *     node dist/tests/integration.js
+ *
+ * The unit tests use fabricated questions. This one exercises the shipped data and
+ * the real relative paths, which is where deployment breaks: a path that works from
+ * the project root and not from a GitHub Pages subpath, a shard that fails to parse,
+ * a bank too thin to fill a round, or an anonymisation rule that held for made-up
+ * bars and not for the ones actually built.
+ */
+
+import { buildRound } from "../src/deck.js";
+import { computePersona } from "../src/persona.js";
+import { answer, createSession, currentQuestion, isFinished } from "../src/session.js";
+import { buildScorecard } from "../src/stats.js";
+import { describeQuestion, formatMetric } from "../src/app.js";
+import { SETUP_LENGTH, type AnswerRecord, type Direction } from "../src/types.js";
+
+const BASE = "http://127.0.0.1:8765";
+const failures: string[] = [];
+
+function check(condition: boolean, message: string): void {
+  if (condition) {
+    console.log(`  ok    ${message}`);
+  } else {
+    console.log(`  FAIL  ${message}`);
+    failures.push(message);
+  }
+}
+
+async function checkStaticAssets(): Promise<void> {
+  console.log("\nStatic assets resolve at their relative paths");
+  for (const path of [
+    "/index.html",
+    "/style.css",
+    "/dist/src/app.js",
+    "/dist/src/chart.js",
+    "/data/manifest.json",
+  ]) {
+    const response = await fetch(`${BASE}${path}`);
+    check(response.ok, `${path} -> HTTP ${response.status}`);
+  }
+}
+
+/**
+ * app.ts throws at startup if any element it needs is absent. That is the right
+ * behaviour, but it means a typo in either file is only caught by opening the page.
+ * This compares the two directly.
+ */
+async function checkElementContract(): Promise<void> {
+  console.log("\nindex.html satisfies the element contract in app.ts");
+  // Read over HTTP rather than from disk: no @types/node here, and this checks the
+  // files as actually served.
+  const html = await (await fetch(`${BASE}/index.html`)).text();
+  const source = await (await fetch(`${BASE}/src/app.ts`)).text();
+
+  const block = source.match(/const REQUIRED_IDS = \[([\s\S]*?)\]/);
+  check(block !== null, "REQUIRED_IDS found in app.ts");
+  if (!block) return;
+
+  const required = [...block[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+  const present = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]!));
+  check(required.length > 0, `${required.length} ids required`);
+  for (const id of required) {
+    check(present.has(id), `#${id} present in index.html`);
+  }
+}
+
+async function checkFullRound(): Promise<void> {
+  console.log("\nA full round runs against the shipped bank");
+
+  const questions = await buildRound(`${BASE}/data`);
+  check(questions.length === 20, `drew ${questions.length} questions`);
+  check(new Set(questions.map((q) => q.id)).size === questions.length, "no repeats in the round");
+
+  const up = questions.filter((q) => q.answer === "up").length;
+  check(Math.abs(up - (questions.length - up)) <= 1, `answers balanced: ${up} up`);
+
+  const strata = new Set(questions.map((q) => `${q.timeframe}|${q.horizon}`));
+  check(strata.size >= 6, `${strata.size} distinct timeframe/horizon strata`);
+
+  console.log("\nShipped questions obey the anonymisation rules");
+  let badShape = 0;
+  let datedBar = 0;
+  for (const q of questions) {
+    if (q.setup.length !== SETUP_LENGTH || q.future.length !== q.horizon) badShape++;
+    for (const bar of [...q.setup, ...q.future]) {
+      const keys = Object.keys(bar).sort().join(",");
+      if (keys !== "c,h,l,o,v") datedBar++;
+    }
+  }
+  check(badShape === 0, "every question has 60 setup bars and horizon future bars");
+  check(datedBar === 0, "no shipped bar carries a timestamp or any extra field");
+  check(
+    questions.every((q) => !/[a-z]{2,}/i.test(q.id) || /^[0-9a-f]{12}$/.test(q.id)),
+    "question ids are opaque hex",
+  );
+
+  const meta = questions.map(describeQuestion);
+  check(
+    meta.every((m) => !/\b(19|20)\d{2}\b/.test(m)),
+    "no card header contains anything year-like",
+  );
+
+  console.log("\nAnswering the whole round produces a usable report");
+  // Alternate the swipe so the persona metrics have both groups to work with.
+  let session = createSession(questions);
+  let index = 0;
+  while (!isFinished(session)) {
+    const given: Direction = index % 2 === 0 ? "up" : "down";
+    check(currentQuestion(session) !== null, `question ${index + 1} available`);
+    session = answer(session, given, 800 + index * 10);
+    index++;
+  }
+  const records: readonly AnswerRecord[] = session.records;
+  check(records.length === 20, `recorded ${records.length} answers`);
+
+  const scorecard = buildScorecard(records);
+  check(scorecard.overall.total === 20, "scorecard counts every answer");
+  check(
+    scorecard.byAssetClass.reduce((a, r) => a + r.total, 0) === 20,
+    "asset-class buckets account for every answer",
+  );
+  check(
+    scorecard.byTimeframe.every((r) => r.interval.low >= 0 && r.interval.high <= 1),
+    "every confidence interval is inside [0,1]",
+  );
+  check(
+    scorecard.byTimeframe.every((r) => r.total >= 8 || r.significance === "inconclusive"),
+    "no small bucket is called a strength or a weakness",
+  );
+
+  const persona = computePersona(records);
+  check(persona.metrics.bullBias !== null, "bull bias computed");
+  check(
+    formatMetric(persona.metrics.momentumScore, "signed") !== "",
+    "momentum renders (or reports insufficient data)",
+  );
+
+  console.log(`\n  round summary: ${scorecard.overall.correct}/20 correct`);
+  console.log(`  persona: ${persona.label ?? "not enough data"}`);
+  console.log(`  strata covered: ${[...strata].sort().join(", ")}`);
+}
+
+async function main(): Promise<void> {
+  console.log(`tickread integration check against ${BASE}`);
+  try {
+    await checkStaticAssets();
+    await checkElementContract();
+    await checkFullRound();
+  } catch (error) {
+    console.log(`\nAborted: ${error instanceof Error ? error.stack : String(error)}`);
+    failures.push("threw");
+  }
+
+  console.log(
+    failures.length === 0
+      ? "\nAll integration checks passed."
+      : `\n${failures.length} checks FAILED:\n  - ${failures.join("\n  - ")}`,
+  );
+  const proc = (globalThis as { process?: { exitCode?: number } }).process;
+  if (proc && failures.length > 0) proc.exitCode = 1;
+}
+
+void main();

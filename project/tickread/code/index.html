@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>tickread — market intuition test</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>tickread</h1>
+      <p class="tagline">Swipe right if it went up, left if it went down.</p>
+    </header>
+
+    <main>
+      <section id="view-start" class="view">
+        <p>
+          You will see twenty anonymised charts — real market data, with the ticker
+          and the dates stripped out. Each one tells you the timeframe, the asset
+          class, and how far ahead to look. Nothing else.
+        </p>
+        <p class="muted">
+          Drag the card, or use the <kbd>←</kbd> and <kbd>→</kbd> keys. You find out
+          straight away whether you were right.
+        </p>
+        <p id="start-summary" class="muted"></p>
+        <button id="start-button" class="primary">Start</button>
+      </section>
+
+      <section id="view-deck" class="view" hidden>
+        <div class="deck-head">
+          <div id="card-meta"></div>
+          <div id="progress" class="muted"></div>
+        </div>
+        <div id="card" class="card">
+          <canvas id="chart-canvas"></canvas>
+          <div class="hint hint-left">down</div>
+          <div class="hint hint-right">up</div>
+        </div>
+        <div id="verdict" class="verdict"></div>
+      </section>
+
+      <section id="view-report" class="view" hidden>
+        <div id="report-mode" class="modes">
+          <button data-mode="round">This round</button>
+          <button data-mode="allTime">All time</button>
+        </div>
+        <div id="report-body"></div>
+        <button id="restart-button" class="primary">Play again</button>
+      </section>
+
+      <section id="view-error" class="view" hidden>
+        <h2>Something went wrong</h2>
+        <p id="error-message"></p>
+        <button id="error-retry" class="primary">Try again</button>
+      </section>
+    </main>
+
+    <footer class="muted">
+      Historical market data, shown for practice. Not trading advice, and past
+      moves say nothing about future ones.
+    </footer>
+
+    <script type="module">
+      import { main } from "./dist/src/app.js";
+      main();
+    </script>
+  </body>
+</html>

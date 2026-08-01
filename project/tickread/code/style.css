@@ -1,0 +1,277 @@
+/* tickread — vanilla CSS, no framework. Light and dark both supported. */
+
+:root {
+  --bg: #fbfbfa;
+  --fg: #1c1c1a;
+  --muted: #6b6b66;
+  --line: rgba(0, 0, 0, 0.12);
+  --card: #ffffff;
+  --good: #22a06b;
+  --bad: #d1495b;
+  --accent: #1c1c1a;
+  --accent-fg: #fbfbfa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16171a;
+    --fg: #e9e9e6;
+    --muted: #91918b;
+    --line: rgba(255, 255, 255, 0.14);
+    --card: #1e2024;
+    --accent: #e9e9e6;
+    --accent-fg: #16171a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1.25rem 1rem 3rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-width: 46rem;
+  margin-inline: auto;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1 {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.2rem;
+}
+
+h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 2rem 0 0.5rem;
+  font-weight: 600;
+}
+
+.tagline {
+  margin: 0.15rem 0 1.5rem;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.note {
+  font-size: 0.9rem;
+  color: var(--muted);
+  border-left: 2px solid var(--line);
+  padding-left: 0.85rem;
+  margin: 1.25rem 0;
+}
+
+kbd {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 0.3em;
+  font: inherit;
+  font-size: 0.9em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  padding: 0.5rem 0.9rem;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  padding: 0.6rem 1.5rem;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+/* --- deck --- */
+
+.deck-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.92rem;
+}
+
+.card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1);
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.card.dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
+.card canvas {
+  display: block;
+  width: 100%;
+  height: 340px;
+}
+
+.hint {
+  position: absolute;
+  top: 1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1.5px solid currentColor;
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.hint-left {
+  left: 1rem;
+  color: var(--bad);
+}
+.hint-right {
+  right: 1rem;
+  color: var(--good);
+}
+
+.card.tint-down .hint-left,
+.card.tint-up .hint-right {
+  opacity: 1;
+}
+
+.verdict {
+  min-height: 1.8rem;
+  margin-top: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.verdict.good {
+  color: var(--good);
+}
+.verdict.bad {
+  color: var(--bad);
+}
+
+/* --- report --- */
+
+.modes {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.modes button.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.headline .big {
+  font-size: 3rem;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.persona-label {
+  font-size: 1.4rem;
+  font-weight: 500;
+  margin: 0.4rem 0 1rem;
+}
+
+table.stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+table.stats th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding-bottom: 0.3rem;
+}
+
+table.stats td,
+table.stats th {
+  padding: 0.32rem 0.5rem 0.32rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+table.stats .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag {
+  font-size: 0.72rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  white-space: nowrap;
+}
+
+.tag.good {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
+}
+.tag.bad {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: var(--bad);
+}
+.tag.muted {
+  color: var(--muted);
+}
+
+/* Tables are the one thing that can outgrow a narrow screen. */
+#report-body {
+  overflow-x: auto;
+}
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 30rem) {
+  .card canvas {
+    height: 260px;
+  }
+  .headline .big {
+    font-size: 2.4rem;
+  }
+}
