@@ -138,8 +138,13 @@ least **30 bars apart**, so the bank does not fill with near-duplicate charts.
 ### Payload
 
 Target ~1500 questions. Prices are rounded to 4 significant figures and volumes to
-integers. Sharded by timeframe into four files, loaded lazily — a round only
-downloads the shards it draws from. Roughly 3.5 MB raw, ~1 MB gzipped.
+integers. Sharded by timeframe into four files. Roughly 3.5 MB raw, ~1 MB gzipped.
+
+All shards are loaded at the start of a round, in parallel. Loading only the shards
+a round draws from would be smaller, but stratified sampling needs the full pool up
+front to guarantee that thin strata are represented — and at ~1 MB gzipped the
+saving does not pay for the constraint. Sharding remains useful for cache
+granularity and for keeping the files reviewable.
 
 ---
 
@@ -159,13 +164,20 @@ relative so the site works under any base path.
 | File | Responsibility | Depends on |
 |---|---|---|
 | `src/types.ts` | Shared types. No logic. | — |
-| `src/deck.ts` | Load shards from the manifest; stratified draw of 20 questions; avoid recently seen ones | `types`, `storage` |
+| `src/deck.ts` | Load shards from the manifest; stratified draw of 20 questions; avoid recently seen ones | `types` |
 | `src/chart.ts` | Pure canvas renderer: `(ctx, bars, opts) => void`. Candles + volume panel + reveal state | `types` |
-| `src/session.ts` | One round's state machine: current index, record answer + response time, advance | `types` |
+| `src/session.ts` | One round's state machine: current index, record answer + response time, advance | `types`, `persona` |
 | `src/stats.ts` | Wilson intervals, bucketed accuracy, significance test | `types` |
 | `src/persona.ts` | Behavioural metrics and label derivation | `types` |
 | `src/storage.ts` | `localStorage` persistence of cumulative history and seen-question ids | `types` |
 | `src/app.ts` | Entry point: view switching, pointer/keyboard gestures, DOM assembly | all |
+
+**Every interface shared between modules is declared in `src/types.ts`**, even when
+another module is the authority on its meaning — `AnswerRecord` and
+`QuestionFeatures` included. Declaring them where they are conceptually owned would
+make `session` and `persona` import each other, and a module cycle held together
+only by type erasure is a trap for the next person. `types.ts` stays logic-free;
+each component spec remains authoritative for the shape of the types it defines.
 
 `deck`, `session`, `stats`, and `persona` are **pure and DOM-free**. They hold all
 the real logic risk — interval maths, metric edge cases, stratified sampling — and

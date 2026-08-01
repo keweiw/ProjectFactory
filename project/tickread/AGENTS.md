@@ -32,6 +32,9 @@ describes the separate ProjectFactory demo project, not this one.
 - Decompose into the eight modules named in `DESIGN.md` § Runtime Architecture.
   Prefer 6–8 components for this project; the root demo's "3–5" guidance does not apply.
 - `src/types.ts` is shared types with no logic — it does not get its own spec.
+  **Every interface shared between modules is declared there**, including
+  `AnswerRecord` and `QuestionFeatures`, even though the session and persona specs
+  are the authority on their shape. This is what keeps the module graph acyclic.
 - Files under `code/data/` and `code/scripts/` are build inputs, not components.
   The data pipeline gets **one** spec covering all three Python scripts together.
 - Every spec's Interfaces section must give exact TypeScript signatures. The Coding
@@ -47,6 +50,9 @@ describes the separate ProjectFactory demo project, not this one.
   the `n ≥ 8 and interval excludes 0.5` rule must match exactly.
 - Confirm each persona metric spec states its behaviour when the denominator is
   zero (no volume surges, no down-trend questions, etc.).
+- Check the module graph for cycles. The only edge between `session` and `persona`
+  is `session` importing `extractFeatures`; if a spec introduces an import back the
+  other way, reject it.
 
 ## Coding Agent
 
