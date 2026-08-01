@@ -1,0 +1,6 @@
+{
+  "name": "tickread",
+  "private": true,
+  "type": "module",
+  "description": "Present only to tell Node that the compiled output is ES modules. tickread has no dependencies; typescript is a global build tool. Do not add a dependencies section."
+}
