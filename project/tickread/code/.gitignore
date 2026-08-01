@@ -1,2 +1,11 @@
-﻿dist/
+# Compiled TypeScript. The Pages workflow builds this; it is never committed.
+dist/
+
+# Fetched raw bars. Large, regenerable, and not part of the shipped bank.
 scripts/.cache/
+
+# Python bytecode. These embed the absolute path of the source file they were
+# compiled from, which leaks the developer's username and directory layout into
+# what is a public repository.
+__pycache__/
+*.pyc
