@@ -26,20 +26,20 @@ test("shouldCommit ignores a drag that stays under a quarter of the card", () =>
 });
 
 test("shouldCommit accepts a drag past a quarter of the card", () => {
-  assertEqual(shouldCommit(76, 300, 0), "up", "right is up");
-  assertEqual(shouldCommit(-76, 300, 0), "down", "left is down");
+  assertEqual(shouldCommit(-76, 300, 0), "up", "upward drag is up");
+  assertEqual(shouldCommit(76, 300, 0), "down", "downward drag is down");
 });
 
 test("shouldCommit accepts a fast flick even when it is short", () => {
-  assertEqual(shouldCommit(20, 300, 0.9), "up");
-  assertEqual(shouldCommit(-20, 300, 0.9), "down");
+  assertEqual(shouldCommit(-20, 300, 0.9), "up");
+  assertEqual(shouldCommit(20, 300, 0.9), "down");
 });
 
 test("shouldCommit ignores a slow flick that is short", () => {
   assertEqual(shouldCommit(20, 300, 0.2), null);
 });
 
-test("shouldCommit ignores a zero-width card rather than dividing by it", () => {
+test("shouldCommit ignores a zero-height card rather than dividing by it", () => {
   assertEqual(shouldCommit(100, 0, 0), null);
 });
 

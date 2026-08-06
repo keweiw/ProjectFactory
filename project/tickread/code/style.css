@@ -126,7 +126,7 @@ button:disabled {
   padding: 0.75rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1);
-  touch-action: pan-y;
+  touch-action: pan-x;
   user-select: none;
   cursor: grab;
 }
@@ -156,17 +156,22 @@ button:disabled {
   pointer-events: none;
 }
 
-.hint-left {
-  left: 1rem;
-  color: var(--bad);
-}
-.hint-right {
-  right: 1rem;
+.hint-up {
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
   color: var(--good);
 }
+.hint-down {
+  top: auto;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--bad);
+}
 
-.card.tint-down .hint-left,
-.card.tint-up .hint-right {
+.card.tint-up .hint-up,
+.card.tint-down .hint-down {
   opacity: 1;
 }
 
