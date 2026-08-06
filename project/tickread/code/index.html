@@ -9,7 +9,7 @@
   <body>
     <header>
       <h1>tickread</h1>
-      <p class="tagline">Swipe right if it went up, left if it went down.</p>
+      <p class="tagline">Swipe up if you think it went up, down if you think it went down.</p>
     </header>
 
     <main>
@@ -20,7 +20,7 @@
           class, and how far ahead to look. Nothing else.
         </p>
         <p class="muted">
-          Drag the card, or use the <kbd>←</kbd> and <kbd>→</kbd> keys. You find out
+          Drag the card up or down, or use the up and down arrow keys. You find out
           straight away whether you were right.
         </p>
         <p id="start-summary" class="muted"></p>
@@ -34,8 +34,8 @@
         </div>
         <div id="card" class="card">
           <canvas id="chart-canvas"></canvas>
-          <div class="hint hint-left">down</div>
-          <div class="hint hint-right">up</div>
+          <div class="hint hint-up">up</div>
+          <div class="hint hint-down">down</div>
         </div>
         <div id="verdict" class="verdict"></div>
       </section>

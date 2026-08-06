@@ -39,16 +39,16 @@ const HOLD_MS = 900;
 
 /** Which way a released drag commits, or null to spring back. */
 export function shouldCommit(
-  deltaX: number,
-  cardWidth: number,
+  deltaY: number,
+  cardHeight: number,
   velocity: number,
 ): Direction | null {
-  if (cardWidth <= 0) return null;
-  const farEnough = Math.abs(deltaX) > cardWidth * COMMIT_FRACTION;
+  if (cardHeight <= 0) return null;
+  const farEnough = Math.abs(deltaY) > cardHeight * COMMIT_FRACTION;
   // A quick flick counts even when it is short, otherwise the gesture feels stuck.
-  const fastEnough = Math.abs(velocity) > FLICK_VELOCITY && Math.abs(deltaX) > 8;
+  const fastEnough = Math.abs(velocity) > FLICK_VELOCITY && Math.abs(deltaY) > 8;
   if (!farEnough && !fastEnough) return null;
-  return deltaX > 0 ? "up" : "down";
+  return deltaY < 0 ? "up" : "down";
 }
 
 const TIMEFRAME_WORDS: Record<Timeframe, string> = {
@@ -324,33 +324,32 @@ export function main(): void {
   function commit(given: Direction): void {
     if (state.busy || state.view !== "deck" || isFinished(state.session)) return;
     state.busy = true;
-    card.style.transform = `translateX(${given === "up" ? 140 : -140}%) rotate(${given === "up" ? 18 : -18}deg)`;
+    card.style.transform = `translateY(${given === "up" ? -140 : 140}%)`;
     reveal(given);
   }
 
   // --- gesture ---
   let dragging = false;
-  let originX = 0;
+  let originY = 0;
   let originT = 0;
-  let deltaX = 0;
+  let deltaY = 0;
 
   card.addEventListener("pointerdown", (event) => {
     if (state.busy) return;
     dragging = true;
-    originX = event.clientX;
+    originY = event.clientY;
     originT = performance.now();
-    deltaX = 0;
+    deltaY = 0;
     card.setPointerCapture(event.pointerId);
     card.classList.add("dragging");
   });
 
   card.addEventListener("pointermove", (event) => {
     if (!dragging) return;
-    deltaX = event.clientX - originX;
-    const rotation = Math.max(-15, Math.min(15, deltaX / 20));
-    card.style.transform = `translateX(${deltaX}px) rotate(${rotation}deg)`;
-    card.classList.toggle("tint-up", deltaX > 12);
-    card.classList.toggle("tint-down", deltaX < -12);
+    deltaY = event.clientY - originY;
+    card.style.transform = `translateY(${deltaY}px)`;
+    card.classList.toggle("tint-up", deltaY < -12);
+    card.classList.toggle("tint-down", deltaY > 12);
   });
 
   function release(event: PointerEvent): void {
@@ -362,8 +361,8 @@ export function main(): void {
     } catch {
       // The pointer may already be gone; nothing to release.
     }
-    const velocity = deltaX / Math.max(1, performance.now() - originT);
-    const decision = shouldCommit(deltaX, card.getBoundingClientRect().width, velocity);
+    const velocity = deltaY / Math.max(1, performance.now() - originT);
+    const decision = shouldCommit(deltaY, card.getBoundingClientRect().height, velocity);
     if (decision) {
       commit(decision);
     } else {
@@ -377,8 +376,8 @@ export function main(): void {
 
   document.addEventListener("keydown", (event) => {
     if (state.view !== "deck") return;
-    if (event.key === "ArrowRight") commit("up");
-    if (event.key === "ArrowLeft") commit("down");
+    if (event.key === "ArrowUp") commit("up");
+    if (event.key === "ArrowDown") commit("down");
   });
 
   // --- round lifecycle ---
