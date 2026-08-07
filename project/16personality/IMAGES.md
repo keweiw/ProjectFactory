@@ -30,6 +30,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Right:** Character on the same style of couch, but relaxed and content, with a book and tea.  
 **Rating: Weak.** Both scenes share the same interior setting and the same character in a solitary posture. The emotional difference (boredom vs. contentment) depends entirely on subtle facial expression and body language. A viewer who misses that detail could read both sides as "alone at home." Consider contrasting the left scene with a social/group setting instead of another solitary one.
 
+**Recommended change:**
+- **Left (E — bored alone):** Show the character at a lively gathering — surrounded by friends, laughing, energised — to establish that they draw energy from others. Caption can remain "Too much time alone bores me" but the visual should show where they *want* to be, not just the state of being bored.
+- **Right (I — recharges alone):** Keep the cosy solitary scene, but add a clear contrast signal — for example, the character stepping away from a crowded party visible through a window, closing the door behind them with a relieved exhale. This makes the *choice* of solitude explicit rather than just showing someone sitting alone.
+
 ---
 
 ## Q04 · S/N — I accept things as they are · I look for how things could be improved
@@ -45,6 +49,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Left:** A tidy, organised room with labelled shelves and neatly folded items.  
 **Right:** A room with items left casually on chairs and surfaces rather than put away.  
 **Rating: Moderate.** Both rooms look lived-in and reasonably pleasant; neither looks chaotic. The distinction is visible on close inspection but the right side is not disorderly enough to signal "wherever convenient" clearly. Increasing the contrast — scattered items, a bag dropped on the floor, labels on the left vs. none on the right — would help.
+
+**Recommended change:**
+- **Left (J — organised):** Sharpen the existing scene: add visible labels on containers, shoes lined up in a rack, books ordered on a shelf, everything clearly in a designated spot. The room should feel like a system is in place.
+- **Right (P — wherever convenient):** Show clear casual placement: bag dropped on the floor just inside the door, jacket draped over a chair, shoes kicked off near (but not in) the rack, a half-eaten snack on the desk. The room should feel comfortable and functional but noticeably unsystematic.
 
 ---
 
@@ -78,6 +86,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Right:** The same character at what appears to be an almost identical desk, but tidier.  
 **Rating: Weak.** The two scenes are near-duplicates of the same person at the same desk. The difference comes down to how tidy the desk surface is. The word "chaotic" in the question implies something energetically different from orderly focus, but both panels look like calm solo work. A more contrasting metaphor — juggling many things at once vs. a single clear task list — would better express the underlying trait.
 
+**Recommended change:**
+- **Left (P — flexible/chaotic):** Show the character context-switching between multiple open projects at once — tabs everywhere, several notebooks open to different pages, phone, snacks, headphones around their neck, working fluidly across it all. The energy should feel scattered but alive, not just messy.
+- **Right (J — orderly):** Show the character with a single clearly defined task in front of them, a ticked checklist to one side, other materials stacked neatly out of the way. The energy should feel focused and sequential — one thing at a time, in order.
+
 ---
 
 ## Q10 · F/T — Criticism or conflict can hurt me easily · I am generally thick-skinned
@@ -85,6 +97,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Left:** Character receiving criticism, visibly upset or withdrawn.  
 **Right:** Same scene but the character appears unmoved, calm, or even nodding.  
 **Rating: Moderate.** The concept requires showing an internal emotional response to an external event, which is inherently subtle. The scenes differ mainly in posture and expression. A stronger visual device — tears or a deflated posture on the left vs. a shrug and steady gaze on the right — would make the contrast more immediate.
+
+**Recommended change:**
+- **Left (F — easily hurt):** Show the character physically shrinking from the criticism — shoulders hunched, eyes cast down, maybe a single tear or a wobbling lip. The critical words can be shown as a speech bubble with harsh text or a dark cloud hovering over the character to make the impact visible.
+- **Right (T — thick-skinned):** Show the character with open, upright posture, making steady eye contact with the critic, perhaps nodding thoughtfully. The same critical speech bubble appears, but illustrated as bouncing off or deflecting away from the character — a classic visual device for imperviousness.
 
 ---
 
@@ -142,6 +158,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Right:** The same scene, with the character appearing to select or point to one specific photo.  
 **Rating: Weak.** Both panels show the same activity (looking at photos at a gathering) and the act of "committing" is represented only by pointing at one photo. This is an abstract stand-in for commitment that many users will not decode correctly. The metaphor of keeping options open vs. committing would be stronger with a more distinct scenario: for example, holding multiple possible paths vs. signing or circling a specific choice, or having an open diary vs. a booked calendar.
 
+**Recommended change:**
+- **Left (P — keeps options open):** Show the character holding several open brochures, leaflets, or event cards in both hands, smiling at the spread — happy to be considering many possibilities with no urgency to decide. A visual cue like an open, blank diary beside them reinforces the openness.
+- **Right (J — makes a commitment):** Show the character circling a date on a calendar, signing up on a form, or shaking hands with someone as a concrete agreement. The body language should signal finality and resolution — leaning in, pen on paper, decision made. A contrast in setting (quiet desk rather than a browsing table) would further separate the two scenes.
+
 ---
 
 ## Q18 · F/T — I want to be good at fixing things · I want to be good at helping people with problems
@@ -158,6 +178,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Right:** Same party background; character is turned attentively toward another person, listening.  
 **Rating: Weak.** The background is nearly identical and the only difference is a small hand gesture vs. an attentive posture. Talking and listening are both quiet activities visually. A stronger contrast would place the talker at the centre of a group conversation they are driving, vs. the listener on the periphery leaning in toward one person.
 
+**Recommended change:**
+- **Left (E — talks more):** Place the character at the centre of a small circle of people, all turned toward them, listening and reacting (laughing, nodding). Speech bubble or sound-wave lines show the character driving the conversation. The body language should be open and outward — gesturing, commanding space.
+- **Right (I — listens more):** Show the character in a one-on-one moment, leaning slightly forward toward a friend who is speaking. The character has no speech bubble; their expression is attentive and engaged. The rest of the party can be visible but slightly blurred in the background, showing they have stepped to the edge of the social scene to focus on one person.
+
 ---
 
 ## Q20 · S/N — I explain what happened · I explain what the event meant
@@ -165,6 +189,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Left:** Character showing or recounting photos from an event (a kite festival), describing facts.  
 **Right:** Similar scene but with a large thought bubble overlaid, suggesting deeper symbolic meaning.  
 **Rating: Moderate.** The thought bubble device is reasonable but abstract — a general audience may read the right side as "daydreaming" rather than "explaining meaning." Replacing the overlaid thought bubble with a scene of the character drawing a lesson or making a personal connection (e.g., writing in a journal with symbolic imagery) would communicate the S/N distinction more directly.
+
+**Recommended change:**
+- **Left (S — explains what happened):** Keep the photo-recounting scene, but make the storytelling more concrete and sequential — the character pointing to specific photos in order, perhaps with a small timeline sketched beside them. Speech bubble could show short factual phrases like "first…", "then…", "and then…" to signal a factual, chronological account.
+- **Right (N — explains what it meant):** Replace the overlaid thought bubble with an active scene of the character writing in a journal, or sitting with a friend and gesturing expressively, with a speech bubble showing a reflective observation like "It made me realise…" or symbolic imagery (a small light-bulb or constellation) to indicate meaning-making rather than just recounting. The emphasis should be on the character connecting the event to something larger.
 
 ---
 
@@ -246,6 +274,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Right:** The same two characters; protagonist is now smiling warmly, hand on chest, openly engaged.  
 **Rating: Moderate.** The setting is near-identical (same table, same two people, same lantern) and the distinction relies entirely on the protagonist's facial expression and hand position. The concept of being uncomfortable with vs. valuing emotional expression would be clearer with a more distinct visual cue — for example, the left side showing the protagonist physically leaning back or looking away, vs. the right side showing a genuine moment of connection (leaning in, perhaps a comforting touch).
 
+**Recommended change:**
+- **Left (T — uncomfortable with emotional expression):** Show the protagonist physically withdrawing — leaning slightly back, arms loosely crossed, glancing to one side, or offering a stiff and brief response while the other person is clearly being emotional. The discomfort should be in the body, not just the face.
+- **Right (F — values emotional expression):** Show a warm, open moment of connection: the protagonist leaning forward, placing a hand on the other person's arm or shoulder, fully engaged, eyes soft. Alternatively, show the protagonist openly expressing their own emotion — tearing up, laughing freely, or pressing a hand to their chest in genuine feeling. The scene should feel expansive and warm rather than contained.
+
 ---
 
 ## Q31 · I/E — I like performing or speaking publicly · I prefer to stay out of the public-speaking spotlight
@@ -253,6 +285,10 @@ Each card is reviewed against the corresponding question from README.md. The rat
 **Left:** Protagonist standing at a microphone before a clapping audience, clearly the centre of attention.  
 **Right:** Protagonist seated at a table showing a photo board to a few audience members, while another person takes the mic in the background.  
 **Rating: Moderate.** The left side clearly depicts public performance. The right side is reasonable — the protagonist is still engaged with an audience but not in the primary spotlight role. However, the right panel still shows the protagonist as an active presenter, which may not read as "prefers to stay out of the spotlight." Showing the protagonist as an enthusiastic audience member rather than a presenter would more cleanly express the preference.
+
+**Recommended change:**
+- **Left (E — likes performing publicly):** Keep the existing microphone scene. Optionally strengthen it by showing a larger or more formal audience, bright lights, and the protagonist with an open, confident stance enjoying the attention.
+- **Right (I — prefers to stay out of spotlight):** Replace the "presenting a photo board" scene with a scene where the protagonist is enthusiastically in the *audience* — clapping, leaning forward engaged, but clearly not on stage. Alternatively, show them helping behind the scenes (setting up chairs, handing out programmes) while someone else takes the stage. Either makes the "out of spotlight by choice" preference unambiguous.
 
 ---
 
@@ -303,14 +339,14 @@ Each card is reviewed against the corresponding question from README.md. The rat
 
 ### Images flagged for replacement or rework
 
-| Priority | # | Issue |
-|---|---|---|
-| High | 03 | Same solo setting on both sides; boredom vs. contentment differs only in expression |
-| High | 09 | Near-identical desk scene; "chaotic" and "orderly" look almost the same |
-| High | 17 | Both sides show the same browsing activity; commitment is not clearly expressed |
-| High | 19 | Near-identical party background; talking vs. listening differs only in a hand gesture |
-| Medium | 05 | Right side not disorderly enough to signal "wherever convenient" |
-| Medium | 10 | Emotional response to criticism is inherently internal; more expressive posture needed |
-| Medium | 20 | Thought bubble for "what it meant" reads as daydreaming rather than explaining meaning |
-| Medium | 30 | Same table scene; emotional comfort vs. discomfort relies on subtle expression only |
-| Medium | 31 | Right side still shows protagonist presenting to an audience, not truly "out of spotlight" |
+| Priority | # | Issue | Left recommendation | Right recommendation |
+|---|---|---|---|---|
+| High | 03 | Both sides show solitude; bored vs. content differs only in expression | Character energised at a social gathering to show where they *want* to be | Character stepping away from a crowded party, closing door with relieved exhale |
+| High | 09 | Near-identical desk; "chaotic" and "orderly" look almost the same | Character context-switching across many open projects at once, alive but scattered | Character with one task, a ticked checklist, everything else stacked away |
+| High | 17 | Same browsing activity on both sides; commitment not expressed | Character happily holding several open options (brochures, cards, blank diary) | Character circling a calendar date or signing a form — decision made, body language final |
+| High | 19 | Near-identical background; talking vs. listening differs only in a hand gesture | Character at centre of a group, all others turned toward them, speech bubble flowing outward | Character in one-on-one conversation at the edge of a party, leaning in attentively, no speech bubble |
+| Medium | 05 | Right side not disorderly enough to signal "wherever convenient" | Sharpen the organised side: labels, rack, everything in a designated spot | Bag dropped at the door, jacket over chair, shoes near but not in rack — functional but unsystematic |
+| Medium | 10 | Emotional response to criticism is inherently internal; posture difference too subtle | Character shrinking — hunched shoulders, downcast eyes; critical words shown as a dark cloud | Character upright, steady eye contact, same critical speech bubble deflecting away |
+| Medium | 20 | Thought bubble reads as daydreaming rather than "explaining meaning" | Sequential photo-pointing with factual speech bubble ("first… then… and then…") | Character writing in journal or gesturing with speech bubble showing "It made me realise…" |
+| Medium | 30 | Same table scene; discomfort vs. openness relies on subtle expression only | Protagonist leaning back, arms loosely crossed, stiff and briefly responsive | Protagonist leaning forward, hand on other person's arm, fully open and warm |
+| Medium | 31 | Right side still shows protagonist actively presenting to an audience | Keep microphone scene; optionally add bright lights and larger crowd | Protagonist enthusiastically in the *audience* clapping, or helping backstage — not on stage |
