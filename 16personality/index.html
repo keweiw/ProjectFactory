@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A visual, swipe-based 16 personality type quiz." />
+    <title>Two Sides — Visual Personality Quiz</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Restart Two Sides quiz">
+          <span class="brand-mark" aria-hidden="true">↔</span>
+          <span>Two Sides</span>
+        </a>
+        <button id="undo-button" class="text-button" type="button" disabled>Undo</button>
+      </header>
+
+      <section id="quiz-screen" class="quiz-screen" aria-labelledby="quiz-title">
+        <div class="intro-copy">
+          <p class="eyebrow">Visual personality quiz</p>
+          <h1 id="quiz-title">Which side feels more like you?</h1>
+          <p>Swipe toward the scene you prefer. Go with your first instinct.</p>
+        </div>
+
+        <div class="progress-row" aria-live="polite">
+          <span id="progress-label">Question 1 of 32</span>
+          <div class="progress-track" aria-hidden="true">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div id="card-stage" class="card-stage">
+          <article id="question-card" class="question-card" tabindex="0" aria-describedby="swipe-help">
+            <img id="question-image" src="assets/question-01.png" alt="Two illustrated personality preferences shown side by side" draggable="false" />
+            <div class="choice-tint choice-tint-left" aria-hidden="true"><span>← Left</span></div>
+            <div class="choice-tint choice-tint-right" aria-hidden="true"><span>Right →</span></div>
+          </article>
+        </div>
+
+        <p id="swipe-help" class="swipe-help">Drag the card, tap a side, or use the ← and → keys.</p>
+        <div class="choice-buttons" aria-label="Choose a side">
+          <button id="left-button" class="choice-button choice-button-left" type="button">
+            <span aria-hidden="true">←</span> Left scene
+          </button>
+          <button id="right-button" class="choice-button choice-button-right" type="button">
+            Right scene <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="result-screen" class="result-screen" hidden aria-labelledby="result-title">
+        <p class="eyebrow">Your visual personality type</p>
+        <div id="result-code" class="result-code" aria-label="Personality type"></div>
+        <h1 id="result-title"></h1>
+        <p id="result-description" class="result-description"></p>
+        <div id="dimension-results" class="dimension-results"></div>
+        <div class="result-note">
+          <strong>A useful snapshot, not a diagnosis.</strong>
+          Personality preferences can shift by context and over time. Use this result for reflection and conversation.
+        </div>
+        <button id="restart-button" class="restart-button" type="button">Take it again</button>
+      </section>
+    </main>
+
+    <script defer src="dist/app.js"></script>
+  </body>
+</html>
