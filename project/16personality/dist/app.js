@@ -18,8 +18,8 @@ const QUESTIONS = [
     ["likes performing publicly", "avoids public speaking"], ["asks who, what, and when", "asks why"]
 ].map(([left, right], index) => ({
     image: `assets/question-${String(index + 1).padStart(2, "0")}.png`,
-    left: left ?? "Left preference",
-    right: right ?? "Right preference"
+    left,
+    right
 }));
 const TYPE_NAMES = {
     INTJ: "The Architect", INTP: "The Thinker", ENTJ: "The Commander", ENTP: "The Explorer",
@@ -113,7 +113,7 @@ const undo = () => {
     quizScreen.hidden = false;
     renderQuestion();
 };
-const answerAt = (questionNumber) => answers[questionNumber - 1] ?? 3;
+const answerAt = (questionNumber) => answers[questionNumber - 1];
 const calculateDimensions = () => {
     const q = answerAt;
     const raw = {

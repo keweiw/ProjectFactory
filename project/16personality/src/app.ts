@@ -17,27 +17,29 @@ interface DimensionResult {
   readonly chosenLabel: string;
 }
 
-const QUESTIONS: readonly Question[] = [
-  ["makes lists", "relies on memory"], ["skeptical", "wants to believe"],
-  ["bored by time alone", "needs time alone"], ["accepts things as they are", "wants to improve things"],
-  ["keeps a clean room", "puts things wherever convenient"], ["values a human mindset", "values mechanical precision"],
-  ["energetic", "mellow"], ["prefers multiple choice", "prefers essay answers"],
-  ["chaotic", "organized"], ["easily hurt", "thick-skinned"],
-  ["works best in groups", "works best alone"], ["focused on the present", "focused on the future"],
-  ["plans far ahead", "plans at the last minute"], ["wants respect", "wants love"],
-  ["worn out by parties", "energized by parties"], ["fits in", "stands out"],
-  ["keeps options open", "commits"], ["fixes things", "helps people"],
-  ["talks more", "listens more"], ["describes what happened", "describes what it meant"],
-  ["starts right away", "procrastinates"], ["follows the heart", "follows the head"],
-  ["stays home", "goes out"], ["wants the big picture", "wants the details"],
-  ["improvises", "prepares"], ["prioritizes justice", "prioritizes compassion"],
-  ["speaks quietly", "calls loudly"], ["theoretical", "empirical"],
-  ["works hard", "plays hard"], ["uncomfortable with emotions", "values emotions"],
-  ["likes performing publicly", "avoids public speaking"], ["asks who, what, and when", "asks why"]
-].map(([left, right], index): Question => ({
+const QUESTIONS: readonly Question[] = (
+  [
+    ["makes lists", "relies on memory"], ["skeptical", "wants to believe"],
+    ["bored by time alone", "needs time alone"], ["accepts things as they are", "wants to improve things"],
+    ["keeps a clean room", "puts things wherever convenient"], ["values a human mindset", "values mechanical precision"],
+    ["energetic", "mellow"], ["prefers multiple choice", "prefers essay answers"],
+    ["chaotic", "organized"], ["easily hurt", "thick-skinned"],
+    ["works best in groups", "works best alone"], ["focused on the present", "focused on the future"],
+    ["plans far ahead", "plans at the last minute"], ["wants respect", "wants love"],
+    ["worn out by parties", "energized by parties"], ["fits in", "stands out"],
+    ["keeps options open", "commits"], ["fixes things", "helps people"],
+    ["talks more", "listens more"], ["describes what happened", "describes what it meant"],
+    ["starts right away", "procrastinates"], ["follows the heart", "follows the head"],
+    ["stays home", "goes out"], ["wants the big picture", "wants the details"],
+    ["improvises", "prepares"], ["prioritizes justice", "prioritizes compassion"],
+    ["speaks quietly", "calls loudly"], ["theoretical", "empirical"],
+    ["works hard", "plays hard"], ["uncomfortable with emotions", "values emotions"],
+    ["likes performing publicly", "avoids public speaking"], ["asks who, what, and when", "asks why"]
+  ] as [string, string][]
+).map(([left, right], index): Question => ({
   image: `assets/question-${String(index + 1).padStart(2, "0")}.png`,
-  left: left ?? "Left preference",
-  right: right ?? "Right preference"
+  left,
+  right
 }));
 
 const TYPE_NAMES: Readonly<Record<string, string>> = {
@@ -135,7 +137,7 @@ const undo = (): void => {
   renderQuestion();
 };
 
-const answerAt = (questionNumber: number): number => answers[questionNumber - 1] ?? 3;
+const answerAt = (questionNumber: number): number => answers[questionNumber - 1]!;
 
 const calculateDimensions = (): readonly DimensionResult[] => {
   const q = answerAt;

@@ -1,10 +1,11 @@
-name: Deploy tickread
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [master]
     paths:
       - "project/tickread/code/**"
+      - "project/16personality/**"
       - ".github/workflows/deploy-tickread.yml"
   workflow_dispatch:
 
@@ -13,14 +14,9 @@ permissions:
   pages: write
   id-token: write
 
-# Never let two deploys race; a queued one supersedes an in-flight one.
 concurrency:
   group: pages
   cancel-in-progress: true
-
-defaults:
-  run:
-    working-directory: project/tickread/code
 
 jobs:
   build:
@@ -32,32 +28,37 @@ jobs:
         with:
           node-version: "22"
 
-      # typescript is the only build dependency. The app itself has none, which is
-      # why there is no npm install step and no lockfile.
       - name: Install the compiler
         run: npm install -g typescript@7.0.2
 
-      - name: Compile
+      - name: Compile tickread
+        working-directory: project/tickread/code
         run: tsc -p .
 
-      - name: Test
+      - name: Test tickread
+        working-directory: project/tickread/code
         run: node dist/tests/run.js
 
-      # Only what the page actually loads. Publishing the whole directory would put
-      # the test suite, the Python data pipeline and the build config on the public
-      # site, none of which it needs. src/ is kept so the source maps in dist/
-      # resolve when someone opens devtools.
-      - name: Assemble the site
+      - name: Compile 16personality
+        working-directory: project/16personality
+        run: tsc -p .
+
+      - name: Assemble site
         run: |
-          mkdir -p _site/dist
-          cp index.html style.css _site/
-          cp -r data _site/data
-          cp -r src _site/src
-          cp -r dist/src _site/dist/src
+          mkdir -p _site/dist/src
+          cp project/tickread/code/index.html project/tickread/code/style.css _site/
+          cp -r project/tickread/code/data _site/data
+          cp -r project/tickread/code/src _site/src
+          cp -r project/tickread/code/dist/src _site/dist/src
+
+          mkdir -p _site/16personality/dist
+          cp project/16personality/index.html project/16personality/style.css _site/16personality/
+          cp -r project/16personality/assets _site/16personality/assets
+          cp project/16personality/dist/app.js _site/16personality/dist/app.js
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: project/tickread/code/_site
+          path: _site
 
   deploy:
     needs: build
