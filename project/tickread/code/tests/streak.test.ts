@@ -1,5 +1,5 @@
 import { test, assertEqual } from "./harness.js";
-import { tapeGlyphs, currentStreak, bestStreak } from "../src/tape.js";
+import { currentStreak, bestStreak } from "../src/streak.js";
 import type { AnswerRecord, Direction } from "../src/types.js";
 
 function record(given: Direction, correct: boolean): AnswerRecord {
@@ -9,8 +9,7 @@ function record(given: Direction, correct: boolean): AnswerRecord {
     timeframe: "1d",
     horizon: 5,
     given,
-    // The answer is whatever makes `correct` true or false, since the tape only
-    // ever reads the call and the outcome.
+    // The answer is whatever makes `correct` true or false.
     answer: correct ? given : given === "up" ? "down" : "up",
     correct,
     responseMs: 800,
@@ -18,44 +17,6 @@ function record(given: Direction, correct: boolean): AnswerRecord {
     ts: 0,
   };
 }
-
-// --- glyphs ---
-
-test("tapeGlyphs is empty for no records", () => {
-  assertEqual(tapeGlyphs([]), []);
-});
-
-test("tapeGlyphs carries the call and the outcome separately", () => {
-  assertEqual(tapeGlyphs([record("up", true), record("down", false)]), [
-    { call: "up", hit: true },
-    { call: "down", hit: false },
-  ]);
-});
-
-test("tapeGlyphs distinguishes all four call and outcome pairs", () => {
-  const records = [
-    record("up", true),
-    record("up", false),
-    record("down", true),
-    record("down", false),
-  ];
-  assertEqual(tapeGlyphs(records), [
-    { call: "up", hit: true },
-    { call: "up", hit: false },
-    { call: "down", hit: true },
-    { call: "down", hit: false },
-  ]);
-});
-
-test("tapeGlyphs preserves the order answers were given in", () => {
-  const records = [record("down", false), record("up", true), record("down", true)];
-  assertEqual(
-    tapeGlyphs(records).map((g) => g.call),
-    ["down", "up", "down"],
-  );
-});
-
-// --- streaks ---
 
 test("currentStreak is 0 for no records", () => {
   assertEqual(currentStreak([]), 0);

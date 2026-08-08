@@ -14,10 +14,6 @@
 
     <main>
       <section id="view-start" class="view">
-        <div id="demo-tape" class="tape tape-demo" hidden>
-          <div id="demo-glyphs" class="tape-glyphs"></div>
-          <div class="tape-streak">demo</div>
-        </div>
         <div id="demo-card" class="card card-demo" hidden aria-hidden="true">
           <canvas id="demo-canvas"></canvas>
           <div id="demo-hand" class="demo-hand">▲</div>
@@ -32,13 +28,12 @@
       </section>
 
       <section id="view-deck" class="view" hidden>
-        <div id="tape-strip" class="tape">
-          <div id="tape-glyphs" class="tape-glyphs"></div>
-          <div id="tape-streak" class="tape-streak"></div>
-        </div>
         <div class="deck-head">
           <div id="card-meta"></div>
-          <div id="progress" class="muted"></div>
+          <div class="deck-head-right">
+            <span id="streak" class="streak"></span>
+            <span id="progress" class="muted"></span>
+          </div>
         </div>
         <div id="card" class="card">
           <canvas id="chart-canvas"></canvas>

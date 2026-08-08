@@ -48,7 +48,7 @@ async function checkStaticAssets(): Promise<void> {
     "/dist/src/chart.js",
     "/data/manifest.json",
     "/data/demo.json",
-    "/dist/src/tape.js",
+    "/dist/src/streak.js",
     "/dist/src/demo.js",
     "/dist/src/report-view.js",
   ]) {

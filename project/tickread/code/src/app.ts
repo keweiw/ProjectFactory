@@ -12,7 +12,7 @@
 import { buildRound, DEFAULT_DECK_SIZE } from "./deck.js";
 import { renderChart, DEFAULT_THEME } from "./chart.js";
 import { renderReport } from "./report-view.js";
-import { currentStreak, tapeGlyphs } from "./tape.js";
+import { currentStreak } from "./streak.js";
 import { demoFrame, DEMO_CYCLE_MS } from "./demo.js";
 import { answer, createSession, currentQuestion, isFinished, progress } from "./session.js";
 import { createHistoryStore, type HistoryStore } from "./storage.js";
@@ -114,17 +114,6 @@ export function describeOutcome(question: Question, correct: boolean): string {
 }
 
 
-/**
- * Filled means a hit, hollow means a miss, and the triangle points the way the
- * player called it. Two channels, neither of them colour.
- */
-const GLYPH: Record<string, string> = {
-  "up-hit": "▲",
-  "up-miss": "△",
-  "down-hit": "▼",
-  "down-miss": "▽",
-};
-
 // --- DOM wiring ---------------------------------------------------------------
 
 interface Elements {
@@ -136,8 +125,8 @@ const REQUIRED_IDS = [
   "start-button", "card", "chart-canvas", "card-meta", "progress",
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
   "start-summary", "error-retry", "call-chip",
-  "tape-strip", "tape-glyphs", "tape-streak", "speed",
-  "demo-card", "demo-canvas", "demo-hand", "demo-tape", "demo-glyphs",
+  "streak", "speed",
+  "demo-card", "demo-canvas", "demo-hand",
 ];
 
 function resolveElements(): Elements {
@@ -258,28 +247,14 @@ export function main(): void {
   }
 
   /**
-   * The tape. Rebuilt whole on each answer rather than appended to: ten glyphs is
-   * nothing to rebuild, and a single source of truth beats keeping the DOM and the
-   * records in step by hand.
+   * The live streak. Deliberately the only running performance signal in a round:
+   * it says how many in a row, and nothing about which way they were called, so it
+   * cannot nudge the player's next answer in either direction.
    */
-  function renderTape(): void {
-    const records = state.session.records;
-    const cells = tapeGlyphs(records).map((glyph) => {
-      const mark = GLYPH[`${glyph.call}-${glyph.hit ? "hit" : "miss"}`]!;
-      const classes = `glyph glyph-${glyph.call} ${glyph.hit ? "hit" : "miss"}`;
-      const label = `${glyph.call === "up" ? "called up" : "called down"}, ${
-        glyph.hit ? "right" : "wrong"
-      }`;
-      return `<span class="${classes}" title="${label}">${mark}</span>`;
-    });
-    if (records.length < state.session.questions.length) {
-      cells.push(`<span class="glyph cursor" aria-hidden="true">▮</span>`);
-    }
-    elements["tape-glyphs"]!.innerHTML = cells.join("");
-
-    const streak = currentStreak(records);
+  function renderStreak(): void {
+    const streak = currentStreak(state.session.records);
     // One hit is not a streak; saying so every time would make the word worthless.
-    elements["tape-streak"]!.textContent = streak >= 2 ? `streak ${streak}` : "";
+    elements["streak"]!.textContent = streak >= 2 ? `streak ${streak}` : "";
   }
 
   /**
@@ -292,7 +267,7 @@ export function main(): void {
     verdict.className = `verdict ${record.correct ? "good" : "bad"}`;
     // Already recorded on every answer since the first release, and never shown.
     elements["speed"]!.textContent = `${(record.responseMs / 1000).toFixed(1)}s`;
-    renderTape();
+    renderStreak();
   }
 
   /** Cross-fade to the next chart. Snapping between two charts reads as a glitch. */
@@ -425,9 +400,8 @@ export function main(): void {
       state.store.markSeen(questions.map((q) => q.id));
       state.session = createSession(questions);
       show("deck");
-      // An empty strip with the cursor already on it, so the tape reads as
-      // something waiting to be filled rather than something that appears later.
-      renderTape();
+      // Clears any streak left over from the previous round.
+      renderStreak();
       renderCard();
     } catch (error) {
       fail(
@@ -500,30 +474,6 @@ export function main(): void {
     });
   }
 
-  /**
-   * The demo's own calls, shown so the strip means something before the player has
-   * made any. Cleared when a round starts — it is an illustration, not their tape,
-   * and nothing here is ever written to history or counted in a statistic.
-   */
-  function renderDemoTape(upTo: number): void {
-    const cells = [];
-    // Wraps at a round's length. Left to grow, a landing page open for a few
-    // minutes would accumulate a strip hundreds of glyphs long.
-    const shown = upTo % (DEFAULT_DECK_SIZE + 1);
-    for (let i = 0; i < shown; i++) {
-      const question = state.demoQuestions[i % state.demoQuestions.length]!;
-      // The demo always calls up, so it hits exactly when the answer was up.
-      const hit = question.answer === "up";
-      cells.push(
-        `<span class="glyph glyph-up ${hit ? "hit" : "miss"}">${
-          GLYPH[hit ? "up-hit" : "up-miss"]
-        }</span>`,
-      );
-    }
-    cells.push(`<span class="glyph cursor" aria-hidden="true">▮</span>`);
-    elements["demo-glyphs"]!.innerHTML = cells.join("");
-  }
-
   function demoStep(): void {
     if (!demoRunning) return;
     if (state.view !== "start" || document.hidden) {
@@ -536,7 +486,6 @@ export function main(): void {
     if (elapsed >= DEMO_CYCLE_MS) {
       demoIndex++;
       demoStartedAt = performance.now();
-      renderDemoTape(demoIndex);
       requestAnimationFrame(demoStep);
       return;
     }
@@ -560,8 +509,6 @@ export function main(): void {
   function showDemo(): void {
     if (state.demoQuestions.length === 0) return;
     elements["demo-card"]!.hidden = false;
-    elements["demo-tape"]!.hidden = false;
-    renderDemoTape(0);
 
     if (reducedMotion) {
       // One fully revealed chart, never animated. The point still lands: this is
