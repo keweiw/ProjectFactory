@@ -19,7 +19,13 @@ import { answer, createSession, currentQuestion, isFinished } from "../src/sessi
 import { buildScorecard } from "../src/stats.js";
 import { describeQuestion } from "../src/app.js";
 import { formatMetric } from "../src/report-view.js";
-import { SETUP_LENGTH, type AnswerRecord, type Direction } from "../src/types.js";
+import {
+  SETUP_LENGTH,
+  type AnswerRecord,
+  type Direction,
+  type Manifest,
+  type Question,
+} from "../src/types.js";
 
 const BASE = "http://127.0.0.1:8765";
 const failures: string[] = [];
@@ -41,9 +47,53 @@ async function checkStaticAssets(): Promise<void> {
     "/dist/src/app.js",
     "/dist/src/chart.js",
     "/data/manifest.json",
+    "/data/demo.json",
+    "/dist/src/tape.js",
+    "/dist/src/demo.js",
+    "/dist/src/report-view.js",
   ]) {
     const response = await fetch(`${BASE}${path}`);
     check(response.ok, `${path} -> HTTP ${response.status}`);
+  }
+}
+
+/**
+ * The landing page fetches demo.json at boot and hands its ids to buildRound as
+ * already-seen. If the file drifts from the shards, a player gets dealt a chart
+ * whose answer they just watched play out.
+ */
+async function checkDemoData(): Promise<void> {
+  console.log("\ndemo.json is usable and excluded from real rounds");
+  const response = await fetch(`${BASE}/data/demo.json`);
+  check(response.ok, `demo.json -> HTTP ${response.status}`);
+  if (!response.ok) return;
+
+  const payload = (await response.json()) as { questions?: Question[] };
+  const demo = payload.questions ?? [];
+  check(demo.length > 0, `${demo.length} demo questions`);
+
+  // It exists so the landing page does not have to pull a 1.8 MB shard.
+  const bytes = JSON.stringify(payload).length;
+  check(bytes < 200_000, `demo.json is ${(bytes / 1024).toFixed(0)} KB, under 200 KB`);
+
+  for (const question of demo) {
+    check(question.setup.length > 0, `${question.id} has a setup`);
+    check(question.future.length > 0, `${question.id} has a future to reveal`);
+    check(
+      question.answer === "up" || question.answer === "down",
+      `${question.id} has a direction`,
+    );
+  }
+
+  // Every demo id must exist in a shard, or the exclusion excludes nothing.
+  const manifest = (await (await fetch(`${BASE}/data/manifest.json`)).json()) as Manifest;
+  const shipped = new Set<string>();
+  for (const shard of manifest.shards) {
+    const items = (await (await fetch(`${BASE}/data/${shard.file}`)).json()) as Question[];
+    for (const item of items) shipped.add(item.id);
+  }
+  for (const question of demo) {
+    check(shipped.has(question.id), `${question.id} resolves to a shipped question`);
   }
 }
 
@@ -160,6 +210,7 @@ async function main(): Promise<void> {
   try {
     await checkStaticAssets();
     await checkElementContract();
+    await checkDemoData();
     await checkFullRound();
   } catch (error) {
     console.log(`\nAborted: ${error instanceof Error ? error.stack : String(error)}`);
