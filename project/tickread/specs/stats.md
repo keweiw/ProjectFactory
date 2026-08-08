@@ -9,9 +9,9 @@ Turns a list of answer records into the report's scorecard: overall accuracy plu
 accuracy split by asset class, timeframe, and prediction horizon — each with a
 Wilson 95% confidence interval and a significance verdict.
 
-This module carries the product's honesty constraint. Twenty questions split three
-ways is inherently sparse; without interval-based gating the report would present
-noise as insight. `src/stats.ts` is where that gate lives.
+This module carries the product's honesty constraint. A ten-question round split
+three ways is inherently sparse; without interval-based gating the report would
+present noise as insight. `src/stats.ts` is where that gate lives.
 
 Pure and DOM-free.
 

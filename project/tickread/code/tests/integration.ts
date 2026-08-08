@@ -13,7 +13,7 @@
  * bars and not for the ones actually built.
  */
 
-import { buildRound } from "../src/deck.js";
+import { buildRound, DEFAULT_DECK_SIZE } from "../src/deck.js";
 import { computePersona } from "../src/persona.js";
 import { answer, createSession, currentQuestion, isFinished } from "../src/session.js";
 import { buildScorecard } from "../src/stats.js";
@@ -74,14 +74,20 @@ async function checkFullRound(): Promise<void> {
   console.log("\nA full round runs against the shipped bank");
 
   const questions = await buildRound(`${BASE}/data`);
-  check(questions.length === 20, `drew ${questions.length} questions`);
+  check(questions.length === DEFAULT_DECK_SIZE, `drew ${questions.length} questions`);
   check(new Set(questions.map((q) => q.id)).size === questions.length, "no repeats in the round");
 
+  // The mix is deliberately left as sampled, so there is nothing to assert about it.
   const up = questions.filter((q) => q.answer === "up").length;
-  check(Math.abs(up - (questions.length - up)) <= 1, `answers balanced: ${up} up`);
+  console.log(`  note  answer mix as sampled: ${up} up, ${questions.length - up} down`);
 
+  // Ten questions round-robin over twelve strata, so every one of them should be a
+  // different stratum. A round no longer covers all twelve, and is not meant to.
   const strata = new Set(questions.map((q) => `${q.timeframe}|${q.horizon}`));
-  check(strata.size >= 6, `${strata.size} distinct timeframe/horizon strata`);
+  check(
+    strata.size === DEFAULT_DECK_SIZE,
+    `${strata.size} distinct timeframe/horizon strata`,
+  );
 
   console.log("\nShipped questions obey the anonymisation rules");
   let badShape = 0;
@@ -117,12 +123,12 @@ async function checkFullRound(): Promise<void> {
     index++;
   }
   const records: readonly AnswerRecord[] = session.records;
-  check(records.length === 20, `recorded ${records.length} answers`);
+  check(records.length === DEFAULT_DECK_SIZE, `recorded ${records.length} answers`);
 
   const scorecard = buildScorecard(records);
-  check(scorecard.overall.total === 20, "scorecard counts every answer");
+  check(scorecard.overall.total === DEFAULT_DECK_SIZE, "scorecard counts every answer");
   check(
-    scorecard.byAssetClass.reduce((a, r) => a + r.total, 0) === 20,
+    scorecard.byAssetClass.reduce((a, r) => a + r.total, 0) === DEFAULT_DECK_SIZE,
     "asset-class buckets account for every answer",
   );
   check(
@@ -141,7 +147,9 @@ async function checkFullRound(): Promise<void> {
     "momentum renders (or reports insufficient data)",
   );
 
-  console.log(`\n  round summary: ${scorecard.overall.correct}/20 correct`);
+  console.log(
+    `\n  round summary: ${scorecard.overall.correct}/${DEFAULT_DECK_SIZE} correct`,
+  );
   console.log(`  persona: ${persona.label ?? "not enough data"}`);
   console.log(`  strata covered: ${[...strata].sort().join(", ")}`);
 }

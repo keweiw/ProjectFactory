@@ -1,15 +1,16 @@
 /**
  * Assembles one round.
  *
- * Stratification and balance repair are what make the report interpretable. A
- * uniform random draw would leave report buckets empty and could hand the user a
- * round that is 15 up — against which swiping right on everything scores 75% and
- * the scorecard lies. See specs/deck.md.
+ * Stratification is what makes the report interpretable: a uniform random draw
+ * would leave report buckets empty. The up/down mix, by contrast, is left exactly
+ * as sampled — the bank is already balanced per bucket offline, so swapping answers
+ * into a live round would bias which charts it can contain to fix nothing worse
+ * than sampling noise. See specs/deck.md.
  *
  * The network functions are thin; `drawDeck` is pure and holds all the logic.
  */
 
-import type { Direction, Manifest, Question, ShardInfo } from "./types.js";
+import type { Manifest, Question, ShardInfo } from "./types.js";
 
 export interface DeckOptions {
   size?: number;
@@ -17,7 +18,12 @@ export interface DeckOptions {
   random?: () => number;
 }
 
-export const DEFAULT_DECK_SIZE = 20;
+/**
+ * Ten, not twenty. A round has to be finishable in a sitting for the immediate
+ * feedback loop to be worth anything; the statistics come from all-time history,
+ * which accumulates across rounds regardless of how long each one is.
+ */
+export const DEFAULT_DECK_SIZE = 10;
 
 function stratumOf(q: Question): string {
   return `${q.timeframe}|${q.horizon}`;
@@ -32,51 +38,6 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
     out[j] = a;
   }
   return out;
-}
-
-/**
- * Best effort. If no swap candidate exists the imbalance is accepted — a slightly
- * lopsided round beats a failed one, and the bank is already balanced per bucket,
- * so this only corrects sampling noise. The loop is bounded so a swap that fails
- * to improve the count cannot spin.
- */
-function repairBalance(
-  selected: Question[],
-  spare: Question[],
-  seen: ReadonlySet<string>,
-): void {
-  for (let guard = selected.length; guard > 0; guard--) {
-    let up = 0;
-    for (const q of selected) if (q.answer === "up") up++;
-    const down = selected.length - up;
-    if (Math.abs(up - down) <= 1) return;
-
-    const over: Direction = up > down ? "up" : "down";
-    const wanted: Direction = over === "up" ? "down" : "up";
-
-    const outIndex = selected.findIndex((q) => q.answer === over);
-    if (outIndex === -1) return;
-    const stratum = stratumOf(selected[outIndex]!);
-
-    // Same stratum keeps coverage intact; unseen keeps the round fresh.
-    const preferences: Array<(q: Question) => boolean> = [
-      (q) => q.answer === wanted && stratumOf(q) === stratum && !seen.has(q.id),
-      (q) => q.answer === wanted && stratumOf(q) === stratum,
-      (q) => q.answer === wanted && !seen.has(q.id),
-      (q) => q.answer === wanted,
-    ];
-
-    let inIndex = -1;
-    for (const matches of preferences) {
-      inIndex = spare.findIndex(matches);
-      if (inIndex !== -1) break;
-    }
-    if (inIndex === -1) return;
-
-    const incoming = spare.splice(inIndex, 1)[0]!;
-    const outgoing = selected.splice(outIndex, 1, incoming)[0]!;
-    spare.push(outgoing);
-  }
 }
 
 export function drawDeck(pool: readonly Question[], options: DeckOptions = {}): Question[] {
@@ -119,9 +80,6 @@ export function drawDeck(pool: readonly Question[], options: DeckOptions = {}): 
       }
     }
   }
-
-  const chosen = new Set(selected.map((q) => q.id));
-  repairBalance(selected, pool.filter((q) => !chosen.has(q.id)), seen);
 
   // Final shuffle so nothing can be inferred from the order strata appear in.
   return shuffle(selected, random);

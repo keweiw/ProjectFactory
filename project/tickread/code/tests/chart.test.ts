@@ -1,5 +1,5 @@
-import { test, assert, assertEqual } from "./harness.js";
-import { renderChart, DEFAULT_THEME } from "../src/chart.js";
+import { test, assert, assertEqual, assertClose } from "./harness.js";
+import { renderChart, forecastGeometry, DEFAULT_THEME } from "../src/chart.js";
 import type { Bar, ChartOptions } from "../src/chart.js";
 
 interface Call {
@@ -145,10 +145,10 @@ test("renderChart draws nothing past the boundary while the future is hidden", (
   const { ctx, calls } = recordingContext();
   renderChart(ctx, rising(60), rising(20, 160), opts);
 
-  // Every bar — wick and body alike — is drawn as a fillRect, so this covers all
-  // data drawing. Grid lines and axis labels use other calls and are exempt.
-  // 60 of 80 slots are setup, so the boundary sits at 75% of the plot width.
-  const boundary = ((opts.width - 44) * 60) / 80;
+  // Every bar — wick and body alike — is drawn as a fillRect, and nothing else is,
+  // so this covers all data drawing. Grid lines, the forecast zone and axis labels
+  // deliberately use path fills and strokes instead, and are exempt.
+  const boundary = forecastGeometry(60, 20, opts.width - 44).setupWidth;
 
   const rects = calls.filter((c) => c.method === "fillRect");
   assert(rects.length > 0, "no bars were drawn at all");
@@ -166,11 +166,107 @@ test("renderChart draws past the boundary once the future is revealed", () => {
   const opts = options({ revealCount: 20 });
   const { ctx, calls } = recordingContext();
   renderChart(ctx, rising(60), rising(20, 160), opts);
-  const boundary = ((opts.width - 44) * 60) / 80;
+  const boundary = forecastGeometry(60, 20, opts.width - 44).setupWidth;
   const beyond = calls
     .filter((c) => c.method === "fillRect")
     .filter((r) => (r.args[0] as number) > boundary);
   assert(beyond.length > 0, "revealed future bars should be drawn past the boundary");
+});
+
+// --- forecast zone: making the prediction horizon visible ---
+
+test("forecastGeometry gives a one-bar horizon a visible zone", () => {
+  const one = forecastGeometry(60, 1, 356);
+  assert(one.forecastWidth >= 16, `one-bar zone was only ${one.forecastWidth}px`);
+  assertClose(one.setupWidth + one.forecastWidth, 356, 6, "the zone must not overflow the plot");
+});
+
+test("every shipped horizon gets a visibly different zone width", () => {
+  // The whole point of the zone is that its width means something. A flat minimum
+  // width made a 1-bar and a 5-bar zone render identically, which is worse than no
+  // minimum at all — the reader is shown a difference that is not there.
+  const one = forecastGeometry(60, 1, 356);
+  const five = forecastGeometry(60, 5, 356);
+  const twenty = forecastGeometry(60, 20, 356);
+  assert(
+    one.forecastWidth < five.forecastWidth,
+    `one bar (${one.forecastWidth}px) must be narrower than five (${five.forecastWidth}px)`,
+  );
+  assert(
+    five.forecastWidth < twenty.forecastWidth,
+    `five bars (${five.forecastWidth}px) must be narrower than twenty (${twenty.forecastWidth}px)`,
+  );
+  // Differences the eye can actually resolve, not a rounding artefact.
+  assert(five.forecastWidth - one.forecastWidth >= 8, "1 vs 5 must differ visibly");
+  assert(twenty.forecastWidth - five.forecastWidth >= 8, "5 vs 20 must differ visibly");
+});
+
+test("a long horizon stays close to its honest proportion", () => {
+  // The floor is there to rescue small horizons, not to inflate large ones.
+  const twenty = forecastGeometry(60, 20, 356);
+  const natural = (356 * 20) / 80;
+  assert(
+    Math.abs(twenty.forecastWidth - natural) < 2,
+    `twenty-bar zone was ${twenty.forecastWidth}px against a natural ${natural}px`,
+  );
+});
+
+test("zone width is monotonic across every horizon, not just the shipped three", () => {
+  let previous = 0;
+  for (let horizon = 1; horizon <= 20; horizon++) {
+    const { forecastWidth } = forecastGeometry(60, horizon, 356);
+    assert(forecastWidth > previous, `horizon ${horizon} did not grow: ${forecastWidth}`);
+    previous = forecastWidth;
+  }
+});
+
+test("forecastGeometry keeps the setup readable on a narrow plot", () => {
+  const cramped = forecastGeometry(60, 20, 60);
+  assert(cramped.forecastWidth <= 30, `the zone ate the setup: ${cramped.forecastWidth}px of 60`);
+  assert(cramped.setupSlot > 0, "setup slots must stay positive");
+});
+
+test("forecastGeometry returns no zone when there is no future", () => {
+  const none = forecastGeometry(60, 0, 356);
+  assertEqual(none.forecastWidth, 0, "no future means no zone");
+  assertClose(none.setupWidth, 356, 6, "the setup takes the whole plot");
+  const empty = forecastGeometry(0, 5, 0);
+  assertEqual(empty.forecastWidth, 0, "a zero-width plot has no zone");
+});
+
+test("renderChart labels and shades the forecast zone before any reveal", () => {
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), rising(5, 160), options({ revealCount: 0 }));
+  const drawn = texts(calls);
+  assert(drawn.includes("NEXT"), `missing forecast heading, got ${JSON.stringify(drawn)}`);
+  assert(drawn.includes("5 BARS"), `missing forecast length, got ${JSON.stringify(drawn)}`);
+  assert(calls.some((c) => c.method === "setLineDash"), "missing dashed boundary");
+});
+
+test("renderChart writes the one-bar horizon in the singular", () => {
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), rising(1, 160), options());
+  assert(texts(calls).includes("1 BAR"), `expected "1 BAR", got ${JSON.stringify(texts(calls))}`);
+});
+
+test("renderChart draws no forecast label when there is no future to predict", () => {
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), [], options());
+  assert(!texts(calls).includes("NEXT"), "a setup-only chart must not promise a forecast");
+});
+
+test("revealing the future does not move the setup candles", () => {
+  const xsAt = (revealCount: number): number[] => {
+    const { ctx, calls } = recordingContext();
+    renderChart(ctx, rising(60), rising(5, 160), options({ revealCount }));
+    // Three fillRects per bar — wick, body, volume — so the first 180 are the
+    // sixty setup bars whether or not the future has been revealed.
+    return calls
+      .filter((c) => c.method === "fillRect")
+      .slice(0, 180)
+      .map((c) => c.args[0] as number);
+  };
+  assertEqual(xsAt(5), xsAt(0), "the chart reflowed when the future was revealed");
 });
 
 test("renderChart scales its geometry by the device pixel ratio", () => {

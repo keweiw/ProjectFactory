@@ -10,6 +10,23 @@
   --bad: #d1495b;
   --accent: #1c1c1a;
   --accent-fg: #fbfbfa;
+
+  /* Report visualisation palette.
+   *
+   * Deliberately NOT --good/--bad. That green/red pair measures ΔE 3.0 under
+   * deuteranopia — the two are the same colour to a red-green colourblind reader,
+   * which is roughly one man in twelve. It stays on the candles, where it is the
+   * universal convention and never the only cue. The charts use a blue/red
+   * diverging pair instead, which clears every CVD gate in both modes.
+   *
+   * Colour is still only ever reinforcement here: every mark is also placed
+   * against the 50% baseline and labelled in words. */
+  --viz-pos: #2a78d6;
+  --viz-neg: #d1495b;
+  --viz-flat: #898781;
+  --viz-track: rgba(0, 0, 0, 0.06);
+  --viz-grid: rgba(0, 0, 0, 0.16);
+  --surface-2: #f4f4f1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +38,14 @@
     --card: #1e2024;
     --accent: #e9e9e6;
     --accent-fg: #16171a;
+
+    /* Re-stepped for the dark surface and re-validated as a set, not flipped. */
+    --viz-pos: #3987e5;
+    --viz-neg: #e66767;
+    --viz-flat: #898781;
+    --viz-track: rgba(255, 255, 255, 0.08);
+    --viz-grid: rgba(255, 255, 255, 0.22);
+    --surface-2: #24262b;
   }
 }
 
@@ -194,7 +219,7 @@ button:disabled {
 .modes {
   display: flex;
   gap: 0.4rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .modes button.active {
@@ -203,17 +228,644 @@ button:disabled {
   border-color: var(--accent);
 }
 
-.headline .big {
-  font-size: 3rem;
-  font-weight: 300;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+.block {
+  margin-top: 2.25rem;
 }
 
-.persona-label {
-  font-size: 1.4rem;
+/* --- the character card --- */
+
+.charcard {
+  padding: 1.5rem 1.35rem 1.35rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.charcard-top {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.charcard-kicker {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.charcard-name {
+  font-size: 1.75rem;
   font-weight: 500;
-  margin: 0.4rem 0 1rem;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 0.1rem 0 0.5rem;
+}
+
+.grade {
+  flex: 0 0 auto;
+  width: 74px;
+  text-align: center;
+  padding: 0.55rem 0.2rem 0.4rem;
+  border-radius: 14px;
+  border: 2px solid var(--viz-pos);
+  color: var(--viz-pos);
+}
+
+/* A grade the sample cannot support is drawn as an outline, never a solid badge —
+   the visual weight has to match how much the number is actually worth. */
+.grade.is-provisional {
+  border-style: dashed;
+  border-color: var(--viz-flat);
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.grade-letter {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.grade-tag {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Proportional figures, not tabular — at this size tabular digits make a number
+   like 121 look loose. */
+.charcard-figure,
+.hero-figure {
+  font-size: 2.6rem;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+/* --- radar: the player's shape --- */
+
+.radar {
+  display: block;
+  width: 100%;
+  max-width: 19rem;
+  margin: 0.75rem auto 0.25rem;
+  overflow: visible;
+}
+
+.rring,
+.rspoke {
+  fill: none;
+  stroke: var(--viz-grid);
+  stroke-width: 1;
+}
+
+.rring {
+  opacity: 0.55;
+}
+.rspoke {
+  opacity: 0.35;
+}
+
+.rshape {
+  fill: var(--viz-pos);
+  fill-opacity: 0.16;
+  stroke: var(--viz-pos);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.rdot {
+  fill: var(--viz-pos);
+  stroke: var(--card);
+  stroke-width: 2;
+}
+
+/* An axis with no measurement behind it is hollow, so the outline cannot be read
+   as four equally-earned readings. */
+.rdot.is-unknown {
+  fill: var(--card);
+  stroke: var(--viz-flat);
+}
+
+.rlabel {
+  fill: var(--muted);
+  font: 600 10px system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+/* --- the map --- */
+
+.skillgrid {
+  display: grid;
+  grid-template-columns: 2rem repeat(3, 1fr);
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.grid-head {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.grid-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cell {
+  aspect-ratio: 3.2 / 1;
+  min-height: 2.6rem;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  background: var(--viz-track);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-mark {
+  font-weight: 700;
+}
+
+.cell.is-locked {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.cell.is-open {
+  color: var(--muted);
+}
+
+/* Colour is never the only cue: every state also carries its own glyph. */
+.cell.is-cleared {
+  background: color-mix(in srgb, var(--viz-pos) 18%, transparent);
+  color: var(--viz-pos);
+  font-weight: 600;
+}
+
+.cell.is-failed {
+  background: color-mix(in srgb, var(--viz-neg) 18%, transparent);
+  color: var(--viz-neg);
+  font-weight: 600;
+}
+
+.grid-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  align-items: center;
+  margin: 0.9rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--viz-track);
+  white-space: nowrap;
+}
+
+.chip.is-cleared {
+  color: var(--viz-pos);
+}
+.chip.is-failed {
+  color: var(--viz-neg);
+}
+.chip.is-locked {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+
+.grid-note-text {
+  flex-basis: 100%;
+  line-height: 1.55;
+}
+
+.hero-unit {
+  font-size: 0.4em;
+  font-weight: 400;
+  margin-left: 0.1em;
+  color: var(--muted);
+}
+
+.hero-sub {
+  color: var(--muted);
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.hero-meter {
+  max-width: 26rem;
+  margin: 0.75rem auto 0;
+}
+
+.hero-track,
+.mtrack {
+  position: relative;
+  height: 14px;
+  background: var(--viz-track);
+  border-radius: 7px;
+}
+
+/* The coin-flip baseline. Solid hairline, never dashed — dashing reads as
+   "projection" when this is the one fixed reference on the chart. */
+.hero-base,
+.mtrack-base {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--viz-grid);
+}
+
+.hero-band,
+.mband {
+  position: absolute;
+  top: 4px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--viz-flat);
+  opacity: 0.5;
+}
+
+.hero-dot,
+.mdot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--viz-flat);
+  /* Surface ring, so the dot stays legible where it sits on the band. */
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.hero-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.hero-mid {
+  /* The label belongs over the baseline, which is the middle of the track. */
+  position: relative;
+  left: 0;
+}
+
+/* --- verdict --- */
+
+.verdict-card {
+  margin-top: 1.5rem;
+  padding: 1.4rem 1.35rem;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.verdict-kicker {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.verdict-title {
+  font-size: 1.65rem;
+  letter-spacing: -0.02em;
+  margin: 0.3rem 0 0.6rem;
+  line-height: 1.15;
+}
+
+.verdict-body {
+  margin: 0;
+  color: var(--fg);
+}
+
+.verdict-suggestion {
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  border-left: 2px solid var(--line);
+  padding-left: 0.85rem;
+}
+
+.vprogress {
+  margin-top: 1.1rem;
+}
+
+.vprogress-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--viz-track);
+  overflow: hidden;
+}
+
+.vprogress-fill {
+  height: 100%;
+  background: var(--viz-flat);
+  border-radius: 4px;
+}
+
+.vprogress-label {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- bucket meters --- */
+
+.meters {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.mrow {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 2.6rem 3rem;
+  grid-template-areas: "label track value n" ". tag tag tag";
+  align-items: center;
+  gap: 0.25rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.mrow-label {
+  grid-area: label;
+}
+
+.mtrack {
+  grid-area: track;
+}
+
+.mrow-value {
+  grid-area: value;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.mrow-n {
+  grid-area: n;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+/* The written tag is the primary channel for significance; the colour reinforces
+   it. Kept visible rather than hidden in a tooltip so nothing is gated on hover. */
+.mrow-tag {
+  grid-area: tag;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.mrow.is-pos .mband,
+.mrow.is-pos .mdot {
+  background: var(--viz-pos);
+}
+.mrow.is-pos .mband {
+  opacity: 0.35;
+}
+.mrow.is-neg .mband,
+.mrow.is-neg .mdot {
+  background: var(--viz-neg);
+}
+.mrow.is-neg .mband {
+  opacity: 0.35;
+}
+.mrow.is-pos .mrow-tag,
+.mrow.is-neg .mrow-tag {
+  color: var(--fg);
+}
+.mrow.is-flat .mrow-tag {
+  opacity: 0.75;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.9rem;
+  margin: 1.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.15rem;
+  vertical-align: -1px;
+}
+
+.key-pos {
+  background: var(--viz-pos);
+}
+.key-neg {
+  background: var(--viz-neg);
+}
+.key-flat {
+  background: var(--viz-flat);
+}
+
+.legend-note {
+  flex-basis: 100%;
+  line-height: 1.5;
+}
+
+/* --- round-by-round trend --- */
+
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  overflow: visible;
+}
+
+/* vector-effect keeps the 2px stroke at 2px despite the non-uniform viewBox
+   scaling that lets the plot stretch to the container. */
+.tline {
+  fill: none;
+  stroke: var(--viz-pos);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.tbase {
+  stroke: var(--viz-grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A zero-length stroke with a round cap: a true circle in device space, so the
+   non-uniform viewBox scaling cannot squash it into an ellipse. 8px meets the
+   minimum marker size and gives the hover title a usable target. */
+.tdot {
+  fill: none;
+  stroke: var(--viz-pos);
+  stroke-width: 8;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.trend-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* --- persona axes --- */
+
+.persona-label {
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0.4rem 0 1.25rem;
+}
+
+.axes {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.axis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.88rem;
+  margin-bottom: 0.35rem;
+}
+
+.axis-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.axis-track {
+  position: relative;
+  height: 10px;
+  background: var(--viz-track);
+  border-radius: 5px;
+}
+
+.axis-mid {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--viz-grid);
+}
+
+.axis-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--viz-pos);
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.axis.is-empty .axis-track {
+  opacity: 0.5;
+}
+
+.axis-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* --- stat tiles --- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+
+.tile {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.tile-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tile-value {
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0.15rem 0 0.1rem;
+}
+
+.tile-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* --- the table twin: every value is reachable without reading a chart --- */
+
+.table-view {
+  margin-top: 2.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.table-view summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.table-view h4 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 1.5rem 0 0.5rem;
+  font-weight: 600;
 }
 
 table.stats {
@@ -276,7 +928,32 @@ footer {
   .card canvas {
     height: 260px;
   }
-  .headline .big {
-    font-size: 2.4rem;
+  .charcard-figure,
+  .hero-figure {
+    font-size: 2.1rem;
+  }
+  .charcard-name {
+    font-size: 1.4rem;
+  }
+  .verdict-title {
+    font-size: 1.4rem;
+  }
+  .skillgrid {
+    grid-template-columns: 1.7rem repeat(3, 1fr);
+    gap: 0.3rem;
+  }
+  /* The n column is the first thing to go: it is in the table view anyway. */
+  .mrow {
+    grid-template-columns: 5rem 1fr 2.6rem;
+    grid-template-areas: "label track value" ". tag tag";
+  }
+  .mrow-n {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
   }
 }

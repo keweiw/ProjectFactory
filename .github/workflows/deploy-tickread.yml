@@ -7,6 +7,14 @@ on:
       - "project/tickread/code/**"
       - "project/16personality/**"
       - ".github/workflows/deploy-tickread.yml"
+  # Build and test pull requests too, so a PR has something to go green on.
+  # The deploy job below is guarded to keep publishing a master-only action.
+  pull_request:
+    branches: [master]
+    paths:
+      - "project/tickread/code/**"
+      - "project/16personality/**"
+      - ".github/workflows/deploy-tickread.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,8 +22,12 @@ permissions:
   pages: write
   id-token: write
 
+# Scoped per ref rather than one global "pages" group. With pull requests now
+# building, a shared group plus cancel-in-progress would let a PR build cancel an
+# in-flight master deploy. Per ref keeps the intended behaviour — a newer push to a
+# branch supersedes its own older run — without PRs interfering with production.
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,12 +68,17 @@ jobs:
           cp -r project/16personality/assets _site/16personality/assets
           cp project/16personality/dist/app.js _site/16personality/dist/app.js
 
+      # A pull request still assembles the site, which is what proves the copy
+      # paths are right, but it has no deploy job to consume the artifact.
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: _site
 
   deploy:
     needs: build
+    # Never publish from a pull request — a PR must be able to fail safely.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
