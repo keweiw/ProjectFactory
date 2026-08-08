@@ -1,5 +1,12 @@
 import { test, assert, assertEqual } from "./harness.js";
-import { shouldCommit, describeQuestion, describeOutcome } from "../src/app.js";
+import {
+  shouldCommit,
+  describeQuestion,
+  describeOutcome,
+  revealTimeline,
+  REVEAL_MS,
+  HOLD_MS,
+} from "../src/app.js";
 import { formatMetric } from "../src/report-view.js";
 import type { Bar, Question } from "../src/types.js";
 
@@ -161,4 +168,41 @@ test("formatMetric signs a bipolar metric", () => {
 
 test("formatMetric renders milliseconds as seconds", () => {
   assertEqual(formatMetric(2500, "ms"), "2.5s");
+});
+
+// --- revealTimeline: the sequencing that used to happen off screen ---
+
+test("revealTimeline draws nothing before the reveal starts", () => {
+  assertEqual(revealTimeline(0, 20), { revealCount: 0, done: false });
+});
+
+test("revealTimeline draws at least one bar the instant it starts", () => {
+  assertEqual(revealTimeline(1, 20).revealCount, 1);
+});
+
+test("revealTimeline has drawn every bar by REVEAL_MS", () => {
+  assertEqual(revealTimeline(REVEAL_MS, 20), { revealCount: 20, done: false });
+});
+
+test("revealTimeline is done only after the hold has elapsed", () => {
+  assertEqual(revealTimeline(REVEAL_MS + HOLD_MS - 1, 20).done, false);
+  assertEqual(revealTimeline(REVEAL_MS + HOLD_MS, 20).done, true);
+});
+
+test("revealTimeline never draws more bars than it was given", () => {
+  assertEqual(revealTimeline(REVEAL_MS * 4, 5).revealCount, 5);
+});
+
+test("revealTimeline handles a one-bar horizon", () => {
+  assertEqual(revealTimeline(1, 1).revealCount, 1);
+  assertEqual(revealTimeline(REVEAL_MS, 1).revealCount, 1);
+});
+
+test("revealTimeline advances monotonically", () => {
+  let previous = 0;
+  for (let t = 0; t <= REVEAL_MS; t += 25) {
+    const count = revealTimeline(t, 20).revealCount;
+    assert(count >= previous, `reveal went backwards at ${t}ms: ${previous} then ${count}`);
+    previous = count;
+  }
 });

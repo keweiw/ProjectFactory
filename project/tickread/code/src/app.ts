@@ -29,8 +29,10 @@ export type ReportMode = "round" | "allTime";
 const DATA_URL = "./data";
 const COMMIT_FRACTION = 0.25;
 const FLICK_VELOCITY = 0.5;
-const REVEAL_MS = 600;
-const HOLD_MS = 900;
+/** How long the true future bars take to draw themselves in. */
+export const REVEAL_MS = 600;
+/** The beat after they have all landed, so the shape can actually be read. */
+export const HOLD_MS = 900;
 
 // --- pure helpers, unit tested ------------------------------------------------
 
@@ -48,6 +50,29 @@ export function shouldCommit(
   return deltaY < 0 ? "up" : "down";
 }
 
+
+export interface RevealFrame {
+  /** Bars of the future to draw. Never below 1 once the reveal has started. */
+  revealCount: number;
+  /** True once every bar has landed and the hold has elapsed. */
+  done: boolean;
+}
+
+/**
+ * Where the reveal has got to at `elapsedMs`.
+ *
+ * Pure, and exported, for the same reason `shouldCommit` is: this is the sequencing
+ * that used to run against a card already thrown off screen, so it is worth being
+ * able to assert on without a browser.
+ */
+export function revealTimeline(elapsedMs: number, steps: number): RevealFrame {
+  if (elapsedMs <= 0) return { revealCount: 0, done: false };
+  const ratio = Math.min(1, elapsedMs / REVEAL_MS);
+  return {
+    revealCount: Math.max(1, Math.min(steps, Math.round(ratio * steps))),
+    done: elapsedMs >= REVEAL_MS + HOLD_MS,
+  };
+}
 
 /**
  * The card's header line. States how far ahead the question looks, and never which
