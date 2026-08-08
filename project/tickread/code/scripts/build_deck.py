@@ -271,6 +271,74 @@ def build_candidates(series):
     return candidates, rejections
 
 
+def select_demo_questions(questions, count=4):
+    """Pick the questions the landing page plays on loop.
+
+    Spread across timeframes so the demo shows a minute chart and a monthly one
+    rather than four of the same thing, and evenly spaced within each timeframe so
+    the picks are not all neighbours from the same instrument and period.
+
+    Deterministic: sorted by id first, so the same bank always yields the same
+    four. The browser excludes these ids from real rounds, and that only works if
+    both sides agree on which four they are.
+    """
+    if count <= 0:
+        return []
+
+    by_timeframe = defaultdict(list)
+    for question in sorted(questions, key=lambda q: q["id"]):
+        by_timeframe[question["timeframe"]].append(question)
+
+    # Round-robin across the timeframes present, taking evenly spaced picks.
+    groups = [by_timeframe[tf] for tf in ("1m", "1h", "1d", "1mo") if by_timeframe[tf]]
+    chosen = []
+    depth = 0
+    while len(chosen) < count and groups:
+        for group in groups:
+            if len(chosen) >= count:
+                break
+            if depth >= len(group):
+                continue
+            # Spread the picks over the group rather than taking the first few.
+            stride = max(1, len(group) // count)
+            index = min(len(group) - 1, depth * stride)
+            chosen.append(group[index])
+        if all(depth >= len(group) for group in groups):
+            break
+        depth += 1
+    return chosen[:count]
+
+
+def load_shipped_bank(out_dir):
+    """Read back the shards already in `out_dir`, for rebuilding demo.json alone."""
+    manifest_path = os.path.join(out_dir, "manifest.json")
+    if not os.path.exists(manifest_path):
+        return []
+    with open(manifest_path, encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    questions = []
+    for shard in manifest.get("shards", []):
+        path = os.path.join(out_dir, shard["file"])
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            questions.extend(json.load(fh))
+    return questions
+
+
+def write_demo(questions, out_dir, count=4):
+    """Write the small file the landing page fetches at boot.
+
+    A few KB, so the landing page can animate without pulling a 1.8 MB shard.
+    """
+    demo = select_demo_questions(questions, count=count)
+    os.makedirs(out_dir, exist_ok=True)
+    payload = {"version": 1, "questions": demo}
+    with open(os.path.join(out_dir, "demo.json"), "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, separators=(",", ":"))
+    return demo
+
+
 def write_bank(questions, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     by_timeframe = defaultdict(list)
@@ -313,7 +381,27 @@ def main(argv=None):
     parser.add_argument("--out", default=os.path.join(here, "..", "data"))
     parser.add_argument("--target", type=int, default=1500)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--demo-only",
+        action="store_true",
+        help=(
+            "Rebuild data/demo.json from the already-shipped shards and touch "
+            "nothing else. A full rebuild renumbers every question, which throws "
+            "away what players have already been shown."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.demo_only:
+        shipped = load_shipped_bank(args.out)
+        if not shipped:
+            print(f"No shards found in {args.out}. Run a full build first.", file=sys.stderr)
+            return 1
+        demo = write_demo(shipped, args.out)
+        print(f"Wrote {os.path.join(args.out, 'demo.json')} from {len(shipped)} shipped questions")
+        for question in demo:
+            print(f"  {question['timeframe']:<4} h={question['horizon']:<3} {question['id']}")
+        return 0
 
     series = load_cache(args.cache)
     print(f"Loaded {len(series)} cached series from {args.cache}")
@@ -340,6 +428,7 @@ def main(argv=None):
         return 1
 
     manifest = write_bank(questions, args.out)
+    write_demo(questions, args.out)
     print(f"\nWrote {args.out}")
     print(f"{'timeframe':<10} {'count':>6}  asset classes")
     for shard in manifest["shards"]:

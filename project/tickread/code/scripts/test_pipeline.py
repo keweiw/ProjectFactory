@@ -495,3 +495,48 @@ class Resume(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SelectDemoQuestions(unittest.TestCase):
+    """The four questions the landing page plays on loop."""
+
+    @staticmethod
+    def q(qid, timeframe="1d"):
+        return {
+            "id": qid,
+            "assetClass": "equity",
+            "timeframe": timeframe,
+            "horizon": 5,
+            "setup": [{"o": 1, "h": 1, "l": 1, "c": 1, "v": 1}],
+            "future": [{"o": 1, "h": 1, "l": 1, "c": 1, "v": 1}],
+            "answer": "up",
+        }
+
+    def test_picks_the_requested_count(self):
+        pool = [self.q(f"q{i:03d}") for i in range(40)]
+        self.assertEqual(len(bd.select_demo_questions(pool, count=4)), 4)
+
+    def test_picks_distinct_questions(self):
+        pool = [self.q(f"q{i:03d}") for i in range(40)]
+        chosen = bd.select_demo_questions(pool, count=4)
+        self.assertEqual(len({q["id"] for q in chosen}), 4)
+
+    def test_is_deterministic(self):
+        pool = [self.q(f"q{i:03d}") for i in range(40)]
+        first = [q["id"] for q in bd.select_demo_questions(pool, count=4)]
+        second = [q["id"] for q in bd.select_demo_questions(list(reversed(pool)), count=4)]
+        self.assertEqual(first, second)
+
+    def test_spreads_across_timeframes_when_it_can(self):
+        pool = []
+        for timeframe in ("1m", "1h", "1d", "1mo"):
+            pool += [self.q(f"{timeframe}-{i:03d}", timeframe) for i in range(10)]
+        chosen = bd.select_demo_questions(pool, count=4)
+        self.assertEqual(len({q["timeframe"] for q in chosen}), 4)
+
+    def test_handles_a_bank_smaller_than_the_count(self):
+        pool = [self.q("q000"), self.q("q001")]
+        self.assertEqual(len(bd.select_demo_questions(pool, count=4)), 2)
+
+    def test_handles_an_empty_bank(self):
+        self.assertEqual(bd.select_demo_questions([], count=4), [])
