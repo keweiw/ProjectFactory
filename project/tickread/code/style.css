@@ -200,6 +200,35 @@ button:disabled {
   opacity: 1;
 }
 
+/* The committed call. Coloured by what the player said, never by whether they
+ * were right — the reveal that follows is what answers that, and tinting by
+ * outcome here would give it away before a single bar has drawn. */
+.card.called-up {
+  border-color: var(--good);
+}
+.card.called-down {
+  border-color: var(--bad);
+}
+
+.card.swapping {
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.call-chip {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 0.3rem 0.5rem;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--muted);
+  pointer-events: none;
+}
+
 .verdict {
   min-height: 1.8rem;
   margin-top: 0.75rem;

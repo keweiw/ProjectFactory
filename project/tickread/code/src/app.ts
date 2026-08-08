@@ -17,6 +17,7 @@ import { createHistoryStore, type HistoryStore } from "./storage.js";
 import {
   ASSET_WORDS,
   TIMEFRAME_WORDS,
+  type AnswerRecord,
   type Direction,
   type Horizon,
   type Question,
@@ -33,6 +34,8 @@ const FLICK_VELOCITY = 0.5;
 export const REVEAL_MS = 600;
 /** The beat after they have all landed, so the shape can actually be read. */
 export const HOLD_MS = 900;
+/** Cross-fade to the next chart, rather than snapping to it. */
+const SWAP_MS = 150;
 
 // --- pure helpers, unit tested ------------------------------------------------
 
@@ -119,7 +122,7 @@ const REQUIRED_IDS = [
   "view-start", "view-deck", "view-report", "view-error",
   "start-button", "card", "chart-canvas", "card-meta", "progress",
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
-  "start-summary", "error-retry",
+  "start-summary", "error-retry", "call-chip",
 ];
 
 function resolveElements(): Elements {
@@ -191,7 +194,8 @@ export function main(): void {
     const question = currentQuestion(state.session);
     if (!question) return;
     card.style.transform = "";
-    card.classList.remove("tint-up", "tint-down");
+    card.classList.remove("tint-up", "tint-down", "called-up", "called-down");
+    elements["call-chip"]!.hidden = true;
     elements["verdict"]!.textContent = "";
     elements["verdict"]!.className = "verdict";
     elements["card-meta"]!.textContent = describeQuestion(question);
@@ -219,29 +223,48 @@ export function main(): void {
     }
   }
 
+  /**
+   * The verdict lands with the last bar, not with the swipe. Showing it up front
+   * would answer the question before the chart has finished answering it.
+   */
+  function showVerdict(question: Question, record: AnswerRecord): void {
+    const verdict = elements["verdict"]!;
+    verdict.textContent = describeOutcome(question, record.correct);
+    verdict.className = `verdict ${record.correct ? "good" : "bad"}`;
+  }
+
+  /** Cross-fade to the next chart. Snapping between two charts reads as a glitch. */
+  function advanceCard(): void {
+    card.classList.add("swapping");
+    window.setTimeout(() => {
+      renderCard();
+      card.classList.remove("swapping");
+    }, SWAP_MS);
+  }
+
   function reveal(given: Direction): void {
     const question = currentQuestion(state.session)!;
     const responseMs = performance.now() - state.shownAt;
     state.session = answer(state.session, given, responseMs);
     const record = state.session.records[state.session.records.length - 1]!;
 
-    const verdict = elements["verdict"]!;
-    verdict.textContent = describeOutcome(question, record.correct);
-    verdict.className = `verdict ${record.correct ? "good" : "bad"}`;
-
     const steps = question.future.length;
     const started = performance.now();
+    let verdictShown = false;
+
     const step = (): void => {
-      const ratio = Math.min(1, (performance.now() - started) / REVEAL_MS);
-      paint(Math.max(1, Math.round(ratio * steps)));
-      if (ratio < 1) {
+      const frame = revealTimeline(performance.now() - started, steps);
+      paint(frame.revealCount);
+      if (frame.revealCount >= steps && !verdictShown) {
+        verdictShown = true;
+        showVerdict(question, record);
+      }
+      if (!frame.done) {
         requestAnimationFrame(step);
         return;
       }
-      window.setTimeout(() => {
-        if (isFinished(state.session)) finishRound();
-        else renderCard();
-      }, HOLD_MS);
+      if (isFinished(state.session)) finishRound();
+      else advanceCard();
     };
     requestAnimationFrame(step);
   }
@@ -249,7 +272,21 @@ export function main(): void {
   function commit(given: Direction): void {
     if (state.busy || state.view !== "deck" || isFinished(state.session)) return;
     state.busy = true;
-    card.style.transform = `translateY(${given === "up" ? -140 : 140}%)`;
+
+    // The card stays where the player is looking. Throwing it off screen here is
+    // exactly what hid the reveal: the true future bars paint into *this* canvas,
+    // and for as long as this line read `translateY(±140%)` they painted into a
+    // card that had already left the viewport.
+    card.style.transform = "";
+    card.classList.remove("tint-up", "tint-down");
+
+    // Coloured by the call, never by the outcome — the outcome is what the next
+    // 600ms is for, and tinting it now would give the answer away.
+    card.classList.add(given === "up" ? "called-up" : "called-down");
+    const chip = elements["call-chip"]!;
+    chip.textContent = given === "up" ? "▲ YOU SAID UP" : "▼ YOU SAID DOWN";
+    chip.hidden = false;
+
     reveal(given);
   }
 
