@@ -186,10 +186,11 @@ relative so the site works under any base path.
 | File | Responsibility | Depends on |
 |---|---|---|
 | `src/types.ts` | Shared types. No logic. | — |
-| `src/deck.ts` | Load shards from the manifest; stratified draw of 20 questions; avoid recently seen ones | `types` |
+| `src/deck.ts` | Load shards from the manifest; stratified draw of `DEFAULT_DECK_SIZE` (10) questions; avoid recently seen ones | `types` |
 | `src/chart.ts` | Pure canvas renderer: `(ctx, bars, opts) => void`. Candles + volume panel + reveal state | `types` |
 | `src/session.ts` | One round's state machine: current index, record answer + response time, advance | `types`, `persona` |
 | `src/stats.ts` | Wilson intervals, bucketed accuracy, significance test | `types` |
+| `src/advice.ts` | Scorecard → a verdict in words, gated on the same significance rule; round-by-round trend series | `types`, `stats` |
 | `src/persona.ts` | Behavioural metrics and label derivation | `types` |
 | `src/storage.ts` | `localStorage` persistence of cumulative history and seen-question ids | `types` |
 | `src/app.ts` | Entry point: view switching, pointer/keyboard gestures, DOM assembly | all |
@@ -214,7 +215,10 @@ Three views, switched by a single function in `app.ts`:
 1. **Start** — brief explanation, cumulative stats if any history exists, start button.
 2. **Deck** — the card. Header line states timeframe, asset class, and horizon in
    plain language ("Daily · US equity · next 5 bars"). It tells the user *how far
-   ahead*, never *which instrument*.
+   ahead*, never *which instrument*. The chart repeats the horizon where the eye
+   already is: a neutral **forecast zone** is reserved to the right of the last
+   setup candle, captioned `NEXT 5 BARS`, so the span being asked about is visible
+   rather than only stated. See `specs/chart.md`.
 3. **Report** — scorecard and behavioural profile.
 
 ### Interaction
@@ -239,8 +243,10 @@ Each cell shows its **sample size** and a **Wilson 95% confidence interval**. A 
 is labelled a significant strength or weakness only when **n ≥ 8 and the interval
 excludes 50%**. Otherwise it is labelled "not enough data".
 
-This constraint is deliberate and non-negotiable. Twenty questions split three ways
-is inherently sparse; without it the report would be presenting noise as insight.
+This constraint is deliberate and non-negotiable. A ten-question round split three
+ways is inherently sparse; without it the report would be presenting noise as
+insight. Shortening the round from twenty to ten made this *more* true, not less —
+the gate is unchanged, and all-time history is what eventually clears it.
 
 The compensation is **cumulative history**. Every answer is persisted to
 `localStorage`, and the report toggles between "this round" and "all time". Cells

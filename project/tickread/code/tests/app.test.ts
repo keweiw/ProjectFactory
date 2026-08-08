@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from "./harness.js";
-import { shouldCommit, describeQuestion, formatMetric } from "../src/app.js";
+import { shouldCommit, describeQuestion, describeOutcome, formatMetric } from "../src/app.js";
 import type { Bar, Question } from "../src/types.js";
 
 function question(over: Partial<Question> = {}): Question {
@@ -75,6 +75,69 @@ test("describeQuestion never leaks anything that could be a year", () => {
     const text = describeQuestion(question({ timeframe, horizon: 20 }));
     assert(!/\b(19|20)\d{2}\b/.test(text), `year-like token in: ${text}`);
   }
+});
+
+// --- describeOutcome: the verdict states the answer, not just the score ---
+
+function withMove(answer: "up" | "down", closeAfter: number): Question {
+  return question({
+    answer,
+    setup: Array.from({ length: 60 }, () => ({ o: 100, h: 100, l: 100, c: 100, v: 1000 })),
+    future: [{ o: 100, h: 103, l: 99, c: closeAfter, v: 1000 }],
+  });
+}
+
+test("describeOutcome states which way it actually went", () => {
+  assert(/up/i.test(describeOutcome(withMove("up", 102.5), true)), "up answer must say up");
+  assert(/down/i.test(describeOutcome(withMove("down", 97.5), false)), "down answer must say down");
+});
+
+test("describeOutcome keeps the correct/wrong verdict", () => {
+  assert(/^correct/i.test(describeOutcome(withMove("up", 102.5), true)), "a hit reads Correct");
+  assert(/^wrong/i.test(describeOutcome(withMove("up", 102.5), false)), "a miss reads Wrong");
+});
+
+test("describeOutcome reports the size of the move against the last setup close", () => {
+  // 100 -> 102.5 is +2.5%, measured from the last setup bar, not the first.
+  assert(describeOutcome(withMove("up", 102.5), true).includes("2.5%"), "expected 2.5%");
+  assert(describeOutcome(withMove("down", 97.5), true).includes("2.5%"), "expected 2.5%");
+});
+
+test("describeOutcome does not sign the move twice", () => {
+  // The direction word already carries the sign; "down -2.5%" would read as a rise.
+  const shown = describeOutcome(withMove("down", 97.5), true);
+  assert(!shown.includes("-"), `redundant sign in: ${shown}`);
+  assert(!shown.includes("+"), `redundant sign in: ${shown}`);
+});
+
+test("describeOutcome measures to the last future bar, not the first", () => {
+  const q = question({
+    answer: "up",
+    setup: Array.from({ length: 60 }, () => ({ o: 100, h: 100, l: 100, c: 100, v: 1000 })),
+    future: [
+      { o: 100, h: 100, l: 94, c: 95, v: 1000 },
+      { o: 95, h: 108, l: 95, c: 107, v: 1000 },
+    ],
+  });
+  assert(describeOutcome(q, true).includes("7.0%"), `expected 7.0%, got ${describeOutcome(q, true)}`);
+});
+
+test("describeOutcome still returns a verdict when there is no future", () => {
+  const shown = describeOutcome(question({ future: [] }), true);
+  assert(/^correct/i.test(shown), shown);
+  assert(!shown.includes("NaN"), shown);
+  assert(!shown.includes("undefined"), shown);
+});
+
+test("describeOutcome never leaks a date or an absolute price", () => {
+  const q = question({
+    answer: "up",
+    setup: Array.from({ length: 60 }, () => ({ o: 61234.5, h: 61234.5, l: 61234.5, c: 61234.5, v: 1 })),
+    future: [{ o: 61234.5, h: 62000, l: 61234.5, c: 61847.8, v: 1 }],
+  });
+  const shown = describeOutcome(q, true);
+  assert(!shown.includes("61234"), `absolute price leaked: ${shown}`);
+  assert(!shown.includes("61847"), `absolute price leaked: ${shown}`);
 });
 
 // --- formatMetric: null is not zero ---
