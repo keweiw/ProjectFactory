@@ -1,5 +1,6 @@
 import { test, assert, assertEqual } from "./harness.js";
-import { shouldCommit, describeQuestion, describeOutcome, formatMetric } from "../src/app.js";
+import { shouldCommit, describeQuestion, describeOutcome } from "../src/app.js";
+import { formatMetric } from "../src/report-view.js";
 import type { Bar, Question } from "../src/types.js";
 
 function question(over: Partial<Question> = {}): Question {

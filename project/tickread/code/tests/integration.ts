@@ -17,7 +17,8 @@ import { buildRound, DEFAULT_DECK_SIZE } from "../src/deck.js";
 import { computePersona } from "../src/persona.js";
 import { answer, createSession, currentQuestion, isFinished } from "../src/session.js";
 import { buildScorecard } from "../src/stats.js";
-import { describeQuestion, formatMetric } from "../src/app.js";
+import { describeQuestion } from "../src/app.js";
+import { formatMetric } from "../src/report-view.js";
 import { SETUP_LENGTH, type AnswerRecord, type Direction } from "../src/types.js";
 
 const BASE = "http://127.0.0.1:8765";

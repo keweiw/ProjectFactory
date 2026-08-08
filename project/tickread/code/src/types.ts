@@ -58,6 +58,26 @@ export const ASSET_CLASS_ORDER: readonly AssetClass[] = [
 export const TIMEFRAME_ORDER: readonly Timeframe[] = ["1m", "1h", "1d", "1mo"];
 export const HORIZON_ORDER: readonly Horizon[] = [1, 5, 20];
 
+/**
+ * How a timeframe and an asset class are written for a reader. Constant lookup
+ * tables, in the same category as the ORDER arrays above and declared here for the
+ * same reason: both `app` (the card header) and `report-view` (the bucket labels)
+ * need them, and giving either one ownership would make the two import each other.
+ */
+export const TIMEFRAME_WORDS: Record<Timeframe, string> = {
+  "1m": "1-minute",
+  "1h": "Hourly",
+  "1d": "Daily",
+  "1mo": "Monthly",
+};
+
+export const ASSET_WORDS: Record<AssetClass, string> = {
+  equity: "US equity",
+  etf_index: "ETF / index",
+  future: "Futures",
+  crypto: "Crypto",
+};
+
 // --- Behavioural features. Authority: specs/persona.md ---
 
 export interface QuestionFeatures {
