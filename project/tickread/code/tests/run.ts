@@ -12,6 +12,7 @@ import "./storage.test.js";
 import "./deck.test.js";
 import "./chart.test.js";
 import "./advice.test.js";
+import "./tape.test.js";
 import "./app.test.js";
 
 async function main(): Promise<void> {
