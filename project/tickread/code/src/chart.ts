@@ -35,6 +35,11 @@ export interface ChartOptions {
   width: number;
   height: number;
   dpr: number;
+  /**
+   * How much of the future to draw. Fractional: the whole part is bars that have
+   * fully arrived, the fraction is how far the next one has formed. An integer
+   * behaves exactly as it always did, so a caller that does not animate is unaffected.
+   */
   revealCount: number;
   theme: ChartTheme;
 }
@@ -57,26 +62,72 @@ export const DEFAULT_THEME: ChartTheme = {
 
 /** Reserved on the right for axis labels. */
 const GUTTER = 44;
+/**
+ * Headroom above the highest bar, reserved for the "NEXT n BARS" caption.
+ *
+ * Without it the price scale ran to y=0, so the tallest candle touched the top of the
+ * plot and the caption — drawn at y=11 and y=24 — sat on top of it whenever the high
+ * came late in the window. Clamping the caption elsewhere only moved the collision;
+ * reserving the band means nothing is ever drawn there in the first place, at every
+ * horizon rather than just the narrow ones.
+ */
+const TOP_INSET = 32;
 const PRICE_BOTTOM = 0.72;
 const VOLUME_TOP = 0.75;
 const FUTURE_ALPHA = 0.5;
+/** A forming bar starts at this share of a revealed bar's opacity, never at nothing. */
+const FORMING_ALPHA_FLOOR = 0.3;
 
 /**
- * A one-bar horizon is 1/61 of the plot — a sliver nobody would notice. But a flat
- * minimum width is worse than the problem: at any sane floor both a 1-bar and a
- * 5-bar zone clamp to it and render *identically*, so the width stops meaning
- * anything exactly where the reader most needs it to.
+ * A bar caught part way through arriving, drawn as one growing out of `from` — the
+ * close it follows.
  *
- * So the floor grows with the horizon instead of being constant. sqrt is the
- * compression that makes this work: it lifts the small horizons clear of invisible
- * while landing almost exactly on the natural width by the time the horizon is 20,
- * so a long zone is still honestly proportional. At a 356px plot the three shipped
- * horizons come out 20 / 45 / 89 px against naturals of 6 / 27 / 89.
+ * All four prices are interpolated from that single level, so at t=0 the bar is a
+ * flat mark on the previous close and at t=1 it is itself. Because every price moves
+ * from the same start, high stays above low throughout and the shape is never
+ * momentarily nonsense; the bar looks like one being printed live, which is what the
+ * chart is depicting anyway.
  */
-const MIN_FORECAST_UNIT = 20;
+function formingBar(bar: Bar, from: number, t: number): Bar {
+  const at = (price: number): number => from + (price - from) * t;
+  return { o: at(bar.o), h: at(bar.h), l: at(bar.l), c: at(bar.c), v: bar.v * t };
+}
+
+/**
+ * A one-bar horizon is 1/61 of the plot — a sliver nobody would notice, so a short
+ * horizon has to be given room. The previous version widened the *zone* to a floor
+ * while leaving the candles at the setup's pitch, which put a 20px shaded band around
+ * a 6px candle: the shadow was visibly wider than the bar it was supposed to be
+ * about, and the surplus read as missing data rather than as emphasis.
+ *
+ * So the room goes to the bar instead. A short horizon gets a wider pitch, and the
+ * zone is then exactly `futureCount * pitch` — the shaded region and the bars in it
+ * are the same object, at every horizon, and nothing is left over. A one-bar forecast
+ * becomes one deliberately chunky candle rather than a thin one adrift in grey.
+ *
+ * The extra room decays exponentially, so it has all but vanished by a horizon of 5
+ * and the long horizons keep their honest proportion. At a 356px plot the three
+ * shipped horizons come out 19 / 31 / 89 px against naturals of 6 / 27 / 89.
+ */
+const EXTRA_AT_ONE = 2.4;
+/**
+ * How fast the extra room decays. It must exceed EXTRA_AT_ONE, or the decay outruns
+ * the horizon's own growth and a 2-bar zone comes out no wider than a 1-bar one —
+ * which is the failure a flat minimum width had, and the reason a zone's width is
+ * only worth drawing if it always means something.
+ */
+const EXTRA_DECAY = 3;
 
 /** The zone may never take more than this share of the plot. */
 const MAX_FORECAST_SHARE = 0.5;
+
+/**
+ * The horizon's width in setup-slot units: `n` bars plus the shrinking allowance that
+ * keeps a short horizon legible. Strictly increasing in `n`.
+ */
+function forecastUnits(futureCount: number): number {
+  return futureCount + EXTRA_AT_ONE * Math.exp(-(futureCount - 1) / EXTRA_DECAY);
+}
 
 export interface ForecastGeometry {
   setupWidth: number;
@@ -106,9 +157,11 @@ export function forecastGeometry(
       forecastSlot: 0,
     };
   }
-  const natural = (width * futureCount) / (setupCount + futureCount);
-  const floor = MIN_FORECAST_UNIT * Math.sqrt(futureCount);
-  const forecastWidth = Math.min(width * MAX_FORECAST_SHARE, Math.max(floor, natural));
+  // The plot is cut into `setupCount` unit slots plus the horizon's own units, so the
+  // zone comes out as exactly the space its bars occupy — no leftover shading.
+  const units = forecastUnits(futureCount);
+  const unitSlot = width / (setupCount + units);
+  const forecastWidth = Math.min(width * MAX_FORECAST_SHARE, units * unitSlot);
   const setupWidth = width - forecastWidth;
   return {
     setupWidth,
@@ -149,9 +202,23 @@ export function renderChart(
   const { width, height, dpr, theme } = options;
   if (width <= 0 || height <= 0 || setup.length === 0) return;
 
-  const revealCount = Math.max(0, Math.min(future.length, Math.floor(options.revealCount)));
-  const revealed = future.slice(0, revealCount);
-  const visible = [...setup, ...revealed];
+  const revealCount = Math.max(0, Math.min(future.length, options.revealCount));
+  const landed = Math.floor(revealCount);
+  const forming = revealCount - landed;
+  const revealed = future.slice(0, landed);
+  const isForming = forming > 0 && landed < future.length;
+
+  // A forming bar grows out of the close before it: the last one revealed, or the
+  // last setup close when it is the first bar of the future.
+  const previousClose = (revealed[revealed.length - 1] ?? setup[setup.length - 1]!).c;
+  const visible = isForming
+    ? [...setup, ...revealed, formingBar(future[landed]!, previousClose, forming)]
+    : [...setup, ...revealed];
+
+  // The scale is taken over the bar's *finished* extent, not the part drawn so far,
+  // so the axis steps once as a bar begins rather than creeping under the reader for
+  // the whole time it is growing. For an integer count this is exactly `visible`.
+  const scaled = [...setup, ...future.slice(0, Math.ceil(revealCount))];
 
   // Space is reserved for the whole future even while it is hidden, so revealing
   // slides new candles in rather than re-laying out the ones already on screen.
@@ -162,17 +229,16 @@ export function renderChart(
     plotWidth,
   );
   const setupCandleWidth = Math.max(1, setupSlot * 0.7);
-  // Future candles keep the setup's pitch rather than spreading over a widened zone.
-  // A one-bar forecast then continues straight on from the last known bar, and the
-  // surplus zone width shows as empty space to the right — not as a gap in the data,
-  // and not as one implausibly fat candle.
-  const futurePitch = forecastSlot > 0 ? Math.min(setupSlot, forecastSlot) : 0;
+  // Future candles take the zone's own pitch, which `forecastGeometry` already sized
+  // so that the bars fill it exactly. Every bar on the chart, past or future, fills
+  // 70% of its slot; a short horizon simply has a wider slot to fill.
+  const futurePitch = forecastSlot;
   const futureCandleWidth = futurePitch > 0 ? Math.max(1, futurePitch * 0.7) : setupCandleWidth;
 
   let low = Infinity;
   let high = -Infinity;
   let maxVolume = 0;
-  for (const b of visible) {
+  for (const b of scaled) {
     if (b.l < low) low = b.l;
     if (b.h > high) high = b.h;
     if (b.v > maxVolume) maxVolume = b.v;
@@ -190,8 +256,10 @@ export function renderChart(
   const volumeTop = height * VOLUME_TOP;
   const volumeHeight = height - volumeTop;
 
+  // Prices map into [TOP_INSET, priceBottom], never to the very top of the plot.
+  const priceTop = Math.min(TOP_INSET, priceBottom * 0.4);
   const yOf = (price: number): number =>
-    priceBottom - ((price - low) / (high - low)) * priceBottom;
+    priceBottom - ((price - low) / (high - low)) * (priceBottom - priceTop);
   const widthOf = (index: number): number =>
     index < setup.length ? setupCandleWidth : futureCandleWidth;
   const xOf = (index: number): number =>
@@ -263,7 +331,14 @@ export function renderChart(
   for (let i = 0; i < visible.length; i++) {
     const bar = visible[i]!;
     const isFuture = i >= setup.length;
-    ctx.globalAlpha = isFuture ? FUTURE_ALPHA : 1;
+    // The bar still forming fades up as it grows, so it reads as arriving rather
+    // than as a bar that is simply drawn wrong.
+    const thisOneForming = isForming && i === visible.length - 1;
+    ctx.globalAlpha = thisOneForming
+      ? FUTURE_ALPHA * (FORMING_ALPHA_FLOOR + (1 - FORMING_ALPHA_FLOOR) * forming)
+      : isFuture
+        ? FUTURE_ALPHA
+        : 1;
 
     const rising = bar.c >= bar.o;
     const x = xOf(i);

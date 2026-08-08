@@ -55,6 +55,18 @@ test("the reveal fills every bar by the end of its phase", () => {
   assertEqual(demoFrame(2700, 20).revealCount, 20);
 });
 
+test("the demo reveal animates a short horizon too", () => {
+  // Same defect the deck had: whole bars only meant a one-bar question could be
+  // absent or finished and nothing in between, so it never looked like a reveal.
+  for (const bars of [1, 5, 20]) {
+    const seen = new Set<string>();
+    for (let t = 1900; t <= 2700; t += 20) {
+      seen.add(demoFrame(t, bars).revealCount.toFixed(3));
+    }
+    assert(seen.size >= 12, `a ${bars}-bar demo horizon only had ${seen.size} frames`);
+  }
+});
+
 test("the reveal advances monotonically", () => {
   let previous = 0;
   for (let t = 1900; t <= 2700; t += 25) {

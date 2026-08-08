@@ -14,6 +14,7 @@ import { renderChart, DEFAULT_THEME } from "./chart.js";
 import { renderReport } from "./report-view.js";
 import { currentStreak } from "./streak.js";
 import { demoFrame, DEMO_CYCLE_MS } from "./demo.js";
+import { burstSparks, liveSparks, makeSpark, sparkFrame, type Spark } from "./spark.js";
 import { answer, createSession, currentQuestion, isFinished, progress } from "./session.js";
 import { createHistoryStore, type HistoryStore } from "./storage.js";
 import {
@@ -32,8 +33,12 @@ export type ReportMode = "round" | "allTime";
 const DATA_URL = "./data";
 const COMMIT_FRACTION = 0.25;
 const FLICK_VELOCITY = 0.5;
-/** How long the true future bars take to draw themselves in. */
-export const REVEAL_MS = 600;
+/** Roughly how long one future bar takes to draw itself in. */
+const PER_BAR_MS = 46;
+/** Short enough to stay a reveal, long enough that a single bar is watchable. */
+export const MIN_REVEAL_MS = 380;
+/** Past this the reveal stops being feedback and becomes a wait. */
+export const MAX_REVEAL_MS = 920;
 /** The beat after they have all landed, so the shape can actually be read. */
 export const HOLD_MS = 900;
 /** Cross-fade to the next chart, rather than snapping to it. */
@@ -57,10 +62,26 @@ export function shouldCommit(
 
 
 export interface RevealFrame {
-  /** Bars of the future to draw. Never below 1 once the reveal has started. */
+  /**
+   * Bars of the future to draw, and deliberately not an integer: the whole part is
+   * the bars that have fully arrived, the fraction is how far the next one has got.
+   */
   revealCount: number;
   /** True once every bar has landed and the hold has elapsed. */
   done: boolean;
+}
+
+/**
+ * How long a reveal of `steps` bars should take.
+ *
+ * A fixed budget cut into however many bars the question has does not work, because
+ * the shipped horizons are 1, 5 and 20 — a 20× spread. One budget makes twenty bars
+ * a blur and one bar an instant. Time per bar, clamped at both ends, gives all three
+ * horizons the same cadence and keeps the extremes watchable.
+ */
+export function revealDurationMs(steps: number): number {
+  if (steps <= 0) return MIN_REVEAL_MS;
+  return Math.min(MAX_REVEAL_MS, Math.max(MIN_REVEAL_MS, steps * PER_BAR_MS));
 }
 
 /**
@@ -69,13 +90,24 @@ export interface RevealFrame {
  * Pure, and exported, for the same reason `shouldCommit` is: this is the sequencing
  * that used to run against a card already thrown off screen, so it is worth being
  * able to assert on without a browser.
+ *
+ * The count is continuous. It used to be `Math.max(1, round(...))`, which forced the
+ * first bar fully on at the first frame — so a one-bar horizon had exactly two states,
+ * absent and finished, and never appeared to animate at all. A fraction gives the
+ * renderer a bar caught mid-formation to draw, which is what makes 1, 5 and 20 bars
+ * read as the same gesture at different lengths.
  */
 export function revealTimeline(elapsedMs: number, steps: number): RevealFrame {
+  const duration = revealDurationMs(steps);
+  if (steps <= 0) return { revealCount: 0, done: elapsedMs >= duration + HOLD_MS };
   if (elapsedMs <= 0) return { revealCount: 0, done: false };
-  const ratio = Math.min(1, elapsedMs / REVEAL_MS);
+  const ratio = Math.min(1, elapsedMs / duration);
+  // Ease out, so the run of bars decelerates into the last one — which is the bar
+  // the answer is graded on, and the one worth landing on rather than skidding past.
+  const eased = 1 - (1 - ratio) * (1 - ratio);
   return {
-    revealCount: Math.max(1, Math.min(steps, Math.round(ratio * steps))),
-    done: elapsedMs >= REVEAL_MS + HOLD_MS,
+    revealCount: Math.min(steps, eased * steps),
+    done: elapsedMs >= duration + HOLD_MS,
   };
 }
 
@@ -114,6 +146,23 @@ export function describeOutcome(question: Question, correct: boolean): string {
 }
 
 
+/**
+ * The line a returning player reads first, on the landing page.
+ *
+ * Rounds are whole by construction — records are only ever appended a finished round
+ * at a time — so "about" is a hedge against a number that is not actually uncertain,
+ * and is dropped when the division comes out exact. The plural is computed rather
+ * than assumed, because the very first thing a new player saw was "about 1 rounds".
+ */
+export function describeHistory(answers: number, deckSize: number): string {
+  if (answers <= 0) return "";
+  const exact = deckSize > 0 ? answers / deckSize : 0;
+  const rounds = Math.max(1, Math.round(exact));
+  const word = rounds === 1 ? "round" : "rounds";
+  const counted = Number.isInteger(exact) ? `${rounds} ${word}` : `about ${rounds} ${word}`;
+  return `${answers} ${answers === 1 ? "answer" : "answers"} so far (${counted})`;
+}
+
 // --- DOM wiring ---------------------------------------------------------------
 
 interface Elements {
@@ -124,7 +173,7 @@ const REQUIRED_IDS = [
   "view-start", "view-deck", "view-report", "view-error",
   "start-button", "card", "chart-canvas", "card-meta", "progress",
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
-  "start-summary", "error-retry", "call-chip",
+  "start-summary", "error-retry", "call-announce", "spark-canvas",
   "streak", "speed",
   "demo-card", "demo-canvas", "demo-hand",
 ];
@@ -182,6 +231,7 @@ export function main(): void {
 
   const canvas = elements["chart-canvas"] as HTMLCanvasElement;
   const card = elements["card"]!;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function show(view: View): void {
     state.view = view;
@@ -195,9 +245,19 @@ export function main(): void {
     show("error");
   }
 
-  function paint(revealCount: number): void {
-    const question = currentQuestion(state.session);
-    if (!question) return;
+  /**
+   * Draws `question`, which is passed in rather than read from the session on purpose.
+   *
+   * This used to call `currentQuestion(state.session)` itself, and `answer()` advances
+   * the index — so every frame of the reveal painted the *next* question's chart while
+   * the header still described the one just answered. The player watched a future
+   * belonging to a chart they had never seen, and on the last card of a round
+   * `currentQuestion` returned null and nothing was painted at all. It also explains
+   * why the reveal seemed to work only sometimes: `revealCount` was counting the
+   * answered question's bars into a chart with a different number of them, so the
+   * clamp in `renderChart` cut the animation short by however much the two differed.
+   */
+  function paint(question: Question, revealCount: number): void {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const width = rect.width || canvas.clientWidth;
@@ -216,15 +276,15 @@ export function main(): void {
     const question = currentQuestion(state.session);
     if (!question) return;
     card.style.transform = "";
-    card.classList.remove("tint-up", "tint-down", "called-up", "called-down");
-    elements["call-chip"]!.hidden = true;
+    card.classList.remove("tint-up", "tint-down", "called-up", "called-down", "popping");
+    elements["call-announce"]!.textContent = "";
     elements["verdict"]!.textContent = "";
     elements["verdict"]!.className = "verdict";
     elements["speed"]!.textContent = "";
     elements["card-meta"]!.textContent = describeQuestion(question);
     const { answered, total } = progress(state.session);
     elements["progress"]!.textContent = `${answered + 1} / ${total}`;
-    paint(0);
+    paint(question, 0);
     state.shownAt = performance.now();
     state.busy = false;
   }
@@ -291,7 +351,7 @@ export function main(): void {
 
     const step = (): void => {
       const frame = revealTimeline(performance.now() - started, steps);
-      paint(frame.revealCount);
+      paint(question, frame.revealCount);
       if (frame.revealCount >= steps && !verdictShown) {
         verdictShown = true;
         showVerdict(question, record);
@@ -306,7 +366,129 @@ export function main(): void {
     requestAnimationFrame(step);
   }
 
-  function commit(given: Direction): void {
+  // --- the sparkle trail ---
+  //
+  // A swipe used to be acknowledged by a chip reading "▲ YOU SAID UP". Sparks say the
+  // same thing while the gesture is still under way, in the direction it is going,
+  // without asking anyone to read anything. `spark.ts` owns the model; this owns the
+  // canvas, the clock and the pointer.
+
+  const sparkCanvas = elements["spark-canvas"] as HTMLCanvasElement;
+  /** Dense enough to read as a trail, sparse enough not to be a smear. */
+  const TRAIL_EVERY_MS = 28;
+  let sparks: Spark[] = [];
+  let sparkLoopRunning = false;
+  let lastTrailAt = 0;
+
+  /** A four-point sparkle: long spikes and a pinched waist, the magic-wand kind. */
+  function starPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    radius: number,
+    angle: number,
+  ): void {
+    const waist = radius * 0.26;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = angle + (i * Math.PI) / 4;
+      const r = i % 2 === 0 ? radius : waist;
+      const px = x + Math.cos(a) * r;
+      const py = y + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  function paintSparks(now: number): void {
+    const rect = sparkCanvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    sparkCanvas.width = Math.round(rect.width * dpr);
+    sparkCanvas.height = Math.round(rect.height * dpr);
+    const ctx = sparkCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, sparkCanvas.width, sparkCanvas.height);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    // Sizes are a fraction of the shorter side, so a star is a star on any screen.
+    const unit = Math.min(rect.width, rect.height);
+    for (const spark of sparks) {
+      const frame = sparkFrame(spark, now);
+      if (!frame) continue;
+      ctx.globalAlpha = frame.alpha;
+      ctx.fillStyle = frame.tint;
+      // The bloom is what sells it as light rather than as a small yellow polygon.
+      ctx.shadowColor = frame.tint;
+      ctx.shadowBlur = frame.size * unit * 1.4;
+      starPath(ctx, frame.x * rect.width, frame.y * rect.height, frame.size * unit, frame.angle);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function sparkStep(): void {
+    const now = performance.now();
+    sparks = liveSparks(sparks, now);
+    paintSparks(now);
+    if (sparks.length === 0 && !dragging) {
+      sparkLoopRunning = false;
+      const ctx = sparkCanvas.getContext("2d");
+      ctx?.clearRect(0, 0, sparkCanvas.width, sparkCanvas.height);
+      return;
+    }
+    requestAnimationFrame(sparkStep);
+  }
+
+  function runSparks(): void {
+    if (sparkLoopRunning) return;
+    sparkLoopRunning = true;
+    requestAnimationFrame(sparkStep);
+  }
+
+  /** Pointer position as a fraction of the spark canvas, which is what a spark wants. */
+  function sparkPoint(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = sparkCanvas.getBoundingClientRect();
+    return {
+      x: rect.width > 0 ? (clientX - rect.left) / rect.width : 0.5,
+      y: rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5,
+    };
+  }
+
+  /** One or two stars off the fingertip, rate limited so a fast drag cannot flood. */
+  function trailSparks(clientX: number, clientY: number, given: Direction): void {
+    if (reducedMotion) return;
+    const now = performance.now();
+    if (now - lastTrailAt < TRAIL_EVERY_MS) return;
+    lastTrailAt = now;
+    const { x, y } = sparkPoint(clientX, clientY);
+    sparks.push(makeSpark({ x, y, direction: given, now, random: Math.random }));
+    runSparks();
+  }
+
+  function burstAt(clientX: number, clientY: number, given: Direction): void {
+    if (reducedMotion) return;
+    const { x, y } = sparkPoint(clientX, clientY);
+    sparks.push(
+      ...burstSparks({ x, y, direction: given, now: performance.now(), random: Math.random }),
+    );
+    runSparks();
+  }
+
+  /** Where the gesture let go of the card, for the animation to pick up from. */
+  interface Release {
+    x: number;
+    y: number;
+    offsetY: number;
+  }
+
+  /** How far past rest the card carries before settling. */
+  const POP_OVERSHOOT = 8;
+  /** A keyboard call has no drag to continue, so it gets a nudge of its own. */
+  const POP_NUDGE = 15;
+
+  function commit(given: Direction, release?: Release): void {
     if (state.busy || state.view !== "deck" || isFinished(state.session)) return;
     state.busy = true;
 
@@ -317,12 +499,35 @@ export function main(): void {
     card.style.transform = "";
     card.classList.remove("tint-up", "tint-down");
 
-    // Coloured by the call, never by the outcome — the outcome is what the next
-    // 600ms is for, and tinting it now would give the answer away.
+    // Coloured by the call, never by the outcome — the outcome is what the reveal
+    // is for, and tinting it now would give the answer away.
     card.classList.add(given === "up" ? "called-up" : "called-down");
-    const chip = elements["call-chip"]!;
-    chip.textContent = given === "up" ? "▲ YOU SAID UP" : "▼ YOU SAID DOWN";
-    chip.hidden = false;
+
+    // Hand the animation both ends. A drag continues from wherever it let go and
+    // overshoots slightly past rest; a keypress starts at rest and gets the nudge
+    // instead, so both inputs produce the same gesture.
+    const away = given === "up" ? -1 : 1;
+    const from = release?.offsetY ?? 0;
+    card.style.setProperty("--pop-from", `${from}px`);
+    card.style.setProperty(
+      "--pop-back",
+      `${from === 0 ? away * POP_NUDGE : -away * POP_OVERSHOOT}px`,
+    );
+    // Restarting the animation needs the class off for a reflow, or a second call
+    // is a no-op as far as the animation is concerned.
+    card.classList.remove("popping");
+    void card.offsetWidth;
+    card.classList.add("popping");
+
+    // Announced, never printed: the screen says it with colour and motion.
+    elements["call-announce"]!.textContent = given === "up" ? "Called up." : "Called down.";
+
+    const rect = card.getBoundingClientRect();
+    burstAt(
+      release?.x ?? rect.left + rect.width / 2,
+      release?.y ?? rect.top + rect.height / 2,
+      given,
+    );
 
     reveal(given);
   }
@@ -349,6 +554,11 @@ export function main(): void {
     card.style.transform = `translateY(${deltaY}px)`;
     card.classList.toggle("tint-up", deltaY < -12);
     card.classList.toggle("tint-down", deltaY > 12);
+    // Only once the drag has a direction worth committing to. Sparks flying off a
+    // 3px twitch would make the effect meaningless.
+    if (Math.abs(deltaY) > 12) {
+      trailSparks(event.clientX, event.clientY, deltaY < 0 ? "up" : "down");
+    }
   });
 
   function release(event: PointerEvent): void {
@@ -363,7 +573,7 @@ export function main(): void {
     const velocity = deltaY / Math.max(1, performance.now() - originT);
     const decision = shouldCommit(deltaY, card.getBoundingClientRect().height, velocity);
     if (decision) {
-      commit(decision);
+      commit(decision, { x: event.clientX, y: event.clientY, offsetY: deltaY });
     } else {
       card.style.transform = "";
       card.classList.remove("tint-up", "tint-down");
@@ -394,7 +604,10 @@ export function main(): void {
       ]);
       const questions = await buildRound(DATA_URL, { seen });
       if (questions.length === 0) {
-        fail("The question bank is empty. Rebuild it with scripts/build_deck.py.");
+        // Only reachable from a broken build, so the instruction goes where the
+        // person who can act on it will see it.
+        console.error("tickread: the question bank is empty — rebuild with scripts/build_deck.py");
+        fail("There are no charts to play right now. Please try again later.");
         return;
       }
       state.store.markSeen(questions.map((q) => q.id));
@@ -404,9 +617,11 @@ export function main(): void {
       renderStreak();
       renderCard();
     } catch (error) {
-      fail(
-        `Could not load the question bank. ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // The raw reason goes to the console, not to the page. "Failed to fetch" is the
+      // browser talking to a developer; it tells a player nothing they can act on,
+      // and it is still one keystroke away for whoever is debugging a deploy.
+      console.error("tickread: could not load the question bank", error);
+      fail("Could not load the charts. Check your connection, then try again.");
     } finally {
       button.disabled = false;
       button.textContent = "Start";
@@ -431,7 +646,10 @@ export function main(): void {
   });
 
   window.addEventListener("resize", () => {
-    if (state.view === "deck" && !state.busy) paint(0);
+    if (state.view !== "deck" || state.busy) return;
+    // Only between cards. Mid-reveal this would repaint at revealCount 0 and undo it.
+    const question = currentQuestion(state.session);
+    if (question) paint(question, 0);
   });
 
   function renderStartSummary(): void {
@@ -441,9 +659,8 @@ export function main(): void {
       return;
     }
     const correct = history.filter((r) => r.correct).length;
-    const rounds = Math.round(history.length / DEFAULT_DECK_SIZE);
     elements["start-summary"]!.textContent =
-      `${history.length} answers so far (about ${rounds} rounds) · ` +
+      `${describeHistory(history.length, DEFAULT_DECK_SIZE)} · ` +
       `${((correct / history.length) * 100).toFixed(0)}% correct`;
   }
 
@@ -452,7 +669,6 @@ export function main(): void {
   const demoCanvas = elements["demo-canvas"] as HTMLCanvasElement;
   const demoCard = elements["demo-card"]!;
   const demoHand = elements["demo-hand"]!;
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let demoIndex = 0;
   let demoStartedAt = 0;

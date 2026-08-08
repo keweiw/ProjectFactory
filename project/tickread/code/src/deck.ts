@@ -10,7 +10,8 @@
  * The network functions are thin; `drawDeck` is pure and holds all the logic.
  */
 
-import type { Manifest, Question, ShardInfo } from "./types.js";
+import { UNASKED_STRATA } from "./types.js";
+import type { Horizon, Manifest, Question, ShardInfo, Timeframe } from "./types.js";
 
 export interface DeckOptions {
   size?: number;
@@ -25,8 +26,21 @@ export interface DeckOptions {
  */
 export const DEFAULT_DECK_SIZE = 10;
 
+/** The bucket a question belongs to, and the key `UNASKED_STRATA` is written in. */
+export function stratumKey(timeframe: Timeframe, horizon: Horizon): string {
+  return `${timeframe}|${horizon}`;
+}
+
+/**
+ * Whether the game asks this pair at all. Exported because the report has to leave a
+ * hole in the skill map for a square it will never let anyone open.
+ */
+export function isAskable(timeframe: Timeframe, horizon: Horizon): boolean {
+  return !UNASKED_STRATA.has(stratumKey(timeframe, horizon));
+}
+
 function stratumOf(q: Question): string {
-  return `${q.timeframe}|${q.horizon}`;
+  return stratumKey(q.timeframe, q.horizon);
 }
 
 function shuffle<T>(items: readonly T[], random: () => number): T[] {
@@ -49,6 +63,9 @@ export function drawDeck(pool: readonly Question[], options: DeckOptions = {}): 
 
   const strata = new Map<string, Question[]>();
   for (const q of pool) {
+    // Filtered here rather than out of the bank: the rule is about what gets asked,
+    // and a shard is free to carry questions a later rule stops asking.
+    if (!isAskable(q.timeframe, q.horizon)) continue;
     const key = stratumOf(q);
     const existing = strata.get(key);
     if (existing) existing.push(q);

@@ -14,7 +14,6 @@ import {
   buildAdvice,
   gradeFor,
   personaShape,
-  roundAccuracies,
   skillGrid,
   type Advice,
   type ShapeAxis,
@@ -247,6 +246,7 @@ const SKILL_MARK: Record<SkillState, string> = {
   failed: "✕",
   open: "·",
   locked: "",
+  unasked: "",
 };
 
 const SKILL_WORD: Record<SkillState, string> = {
@@ -254,6 +254,7 @@ const SKILL_WORD: Record<SkillState, string> = {
   failed: "blind spot",
   open: "in progress",
   locked: "locked",
+  unasked: "not asked",
 };
 
 /**
@@ -272,15 +273,20 @@ function skillMap(cells: readonly SkillCell[]): string {
       .map((cell) => {
         const needed = answersToUnlock(cell);
         const readout =
-          cell.state === "locked"
-            ? `${TIMEFRAME_WORDS[cell.timeframe]}, ${cell.horizon}-bar: locked — ${needed} answers to unlock`
-            : `${TIMEFRAME_WORDS[cell.timeframe]}, ${cell.horizon}-bar: ` +
-              `${Math.round((cell.accuracy ?? 0) * 100)}% over ${cell.total} — ${SKILL_WORD[cell.state]}` +
-              (needed > 0 ? ` (${needed} more to call it)` : "");
+          cell.state === "unasked"
+            ? `${TIMEFRAME_WORDS[cell.timeframe]}, ${cell.horizon}-bar: not asked — ` +
+              `the next one-minute bar is noise, not a read`
+            : cell.state === "locked"
+              ? `${TIMEFRAME_WORDS[cell.timeframe]}, ${cell.horizon}-bar: locked — ${needed} answers to unlock`
+              : `${TIMEFRAME_WORDS[cell.timeframe]}, ${cell.horizon}-bar: ` +
+                `${Math.round((cell.accuracy ?? 0) * 100)}% over ${cell.total} — ${SKILL_WORD[cell.state]}` +
+                (needed > 0 ? ` (${needed} more to call it)` : "");
         const inner =
-          cell.state === "locked"
-            ? `<span class="cell-lock">?</span>`
-            : `<span class="cell-mark">${SKILL_MARK[cell.state]}</span>
+          cell.state === "unasked"
+            ? `<span class="cell-lock">—</span>`
+            : cell.state === "locked"
+              ? `<span class="cell-lock">?</span>`
+              : `<span class="cell-mark">${SKILL_MARK[cell.state]}</span>
                <span class="cell-pct">${Math.round((cell.accuracy ?? 0) * 100)}</span>`;
         return `<div class="cell is-${cell.state}" title="${escapeHtml(readout)}">${inner}</div>`;
       })
@@ -288,7 +294,12 @@ function skillMap(cells: readonly SkillCell[]): string {
     return `<div class="grid-label">${escapeHtml(TIMEFRAME_SHORT[timeframe])}</div>${boxes}`;
   }).join("");
 
-  const unlocked = cells.filter((c) => c.state !== "locked").length;
+  const onTheMap = cells.filter((c) => c.state !== "unasked");
+  const unlocked = onTheMap.filter((c) => c.state !== "locked").length;
+  const unaskedNote = onTheMap.length === cells.length
+    ? ""
+    : ` The dashed square is not a square you can open: the next one-minute bar is
+      bid-ask noise, so the game does not ask it.`;
 
   return `<section class="block">
     <h3>The map</h3>
@@ -302,71 +313,30 @@ function skillMap(cells: readonly SkillCell[]): string {
       <span class="chip is-failed">✕ blind spot</span>
       <span class="chip is-open">· in progress</span>
       <span class="chip is-locked">? locked</span>
-      <span class="grid-note-text">${unlocked} of 12 squares opened. A square only turns
-      ✓ or ✕ once it has ${MIN_SAMPLE}+ answers <em>and</em> the odds have clearly moved off a
-      coin flip — so the ones still showing “·” are genuinely undecided, not hidden.</span>
+      <span class="grid-note-text">${unlocked} of ${onTheMap.length} squares opened. A square
+      only turns ✓ or ✕ once it has ${MIN_SAMPLE}+ answers <em>and</em> the odds have clearly
+      moved off a coin flip — so the ones still showing “·” are genuinely undecided, not
+      hidden.${unaskedNote}</span>
     </p>
   </section>`;
 }
 
-/** Fewer than this and a "trend" is two dots and an opinion. */
-const MIN_TREND_ROUNDS = 3;
-
-/**
- * Accuracy per round as a line against the 50% baseline.
+/*
+ * There was a round-by-round accuracy line here, 120px tall and stretched to the full
+ * width of the report. It is gone, and not because of its size.
  *
- * Inline SVG rather than a canvas: it scales, it survives a theme change without a
- * repaint, and every point is reachable as a `<title>` for a screen reader. One
- * series, so no legend — the heading names it. Only the last point is labelled;
- * a number on every dot is noise.
+ * A round is DEFAULT_DECK_SIZE answers. Ten coin flips have a standard deviation of
+ * about 16 percentage points, so a run of perfectly flat 50% skill still draws a line
+ * that lurches between 30% and 70% — the eye reads slumps and comebacks in what is
+ * entirely sampling noise. Every other block on this page refuses to make exactly that
+ * claim: a bucket says nothing until it has MIN_SAMPLE answers *and* its interval
+ * clears a coin flip, and the skill map shows an undecided square rather than a
+ * number. A chart whose own caption had to warn the reader not to believe it was the
+ * one thing on the page arguing against the rest of it.
+ *
+ * "Am I improving?" is a fair question. Answering it honestly needs the all-time
+ * interval and the map, both of which are already here. It does not need a line.
  */
-function trendChart(accuracies: readonly number[]): string {
-  if (accuracies.length < MIN_TREND_ROUNDS) return "";
-
-  const width = 100;
-  const height = 34;
-  const step = accuracies.length > 1 ? width / (accuracies.length - 1) : 0;
-  const yOf = (accuracy: number): number => height - accuracy * height;
-
-  const points = accuracies.map((a, i) => ({ x: i * step, y: yOf(a) }));
-  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
-
-  // Each dot is a zero-length stroke with a round cap, not a <circle>. The plot
-  // stretches to its container, so x and y scale by different factors and a circle
-  // would render as an ellipse; a round line cap is drawn in device space and stays
-  // a circle at any aspect ratio.
-  const dots = points
-    .map(
-      (p, i) =>
-        `<path class="tdot" d="M${p.x.toFixed(2)} ${p.y.toFixed(2)}l0 0">` +
-        `<title>Round ${i + 1}: ${(accuracies[i]! * 100).toFixed(0)}%</title></path>`,
-    )
-    .join("");
-
-  const last = accuracies[accuracies.length - 1]!;
-  const first = accuracies[0]!;
-  const direction = last > first ? "up from" : last < first ? "down from" : "level with";
-
-  return `<section class="block">
-    <h3>Round by round</h3>
-    <div class="trend">
-      <svg class="trend-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"
-           role="img" aria-label="Accuracy by round, ${accuracies.length} rounds">
-        <line class="tbase" x1="0" y1="${yOf(0.5)}" x2="${width}" y2="${yOf(0.5)}"></line>
-        <path class="tline" d="${path}"></path>
-        ${dots}
-      </svg>
-      <div class="trend-scale">
-        <span>round 1</span>
-        <span>round ${accuracies.length}</span>
-      </div>
-      <p class="trend-note">The flat rule is a coin flip. Latest round
-        ${(last * 100).toFixed(0)}% — ${direction} your first at ${(first * 100).toFixed(0)}%.
-        One round is ${DEFAULT_DECK_SIZE} answers, so a single point moves a long way on
-        luck alone; the shape over several rounds is the part worth reading.</p>
-    </div>
-  </section>`;
-}
 
 function verdictCard(advice: Advice): string {
   const suggestion =
@@ -475,8 +445,6 @@ export function renderReport(host: HTMLElement, records: readonly AnswerRecord[]
     ${verdictCard(advice)}
 
     ${skillMap(skillGrid(records))}
-
-    ${trendChart(roundAccuracies(records, DEFAULT_DECK_SIZE))}
 
     <details class="table-view">
       <summary>Show the full statistics</summary>

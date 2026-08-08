@@ -213,6 +213,9 @@ button:disabled {
   .card.swapping {
     transition: none;
   }
+  /* The pop is cancelled next to its own rule further down, not here: at equal
+   * specificity the later declaration wins, so an override written above the thing
+   * it overrides silently does nothing. */
 }
 
 /* --- the landing page demo ---
@@ -261,6 +264,23 @@ button:disabled {
   font-size: 0.92rem;
 }
 
+/* The card and the sparks it throws. The canvas is a sibling, not a child, so a
+ * drag leaves its trail behind instead of carrying it along — and it overhangs the
+ * card top and bottom, so a star thrown past the edge is not clipped mid-flight. */
+.card-stage {
+  position: relative;
+}
+
+.sparks {
+  position: absolute;
+  left: 0;
+  top: -48px;
+  width: 100%;
+  height: calc(100% + 96px);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .card {
   position: relative;
   background: var(--card);
@@ -286,37 +306,41 @@ button:disabled {
   height: clamp(300px, 56vh, 600px);
 }
 
+/* A chevron, not the word "up".
+ *
+ * The words were the same mistake the "YOU SAID UP" chip was: prose narrating a
+ * gesture the hand is in the middle of making. The mark points where the drag is
+ * going, grows as it commits, and is out of the accessibility tree entirely — the
+ * live region after the card carries the call for a reader who cannot see it. */
 .hint {
   position: absolute;
   top: 1rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  border: 1.5px solid currentColor;
-  border-radius: 6px;
-  padding: 0.15rem 0.5rem;
+  font-size: 1.4rem;
+  line-height: 1;
   opacity: 0;
-  transition: opacity 0.15s;
+  transform: translateX(-50%) scale(0.6);
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
 }
 
 .hint-up {
-  top: 1rem;
+  top: 0.9rem;
   left: 50%;
-  transform: translateX(-50%);
   color: var(--good);
 }
 .hint-down {
   top: auto;
-  bottom: 1rem;
+  bottom: 0.9rem;
   left: 50%;
-  transform: translateX(-50%);
   color: var(--bad);
 }
 
 .card.tint-up .hint-up,
 .card.tint-down .hint-down {
-  opacity: 1;
+  opacity: 0.95;
+  transform: translateX(-50%) scale(1);
 }
 
 /* The committed call. Coloured by what the player said, never by whether they
@@ -324,9 +348,46 @@ button:disabled {
  * outcome here would give it away before a single bar has drawn. */
 .card.called-up {
   border-color: var(--good);
+  box-shadow: 0 0 0 1px var(--good), 0 6px 22px color-mix(in srgb, var(--good) 22%, transparent);
 }
 .card.called-down {
   border-color: var(--bad);
+  box-shadow: 0 0 0 1px var(--bad), 0 6px 22px color-mix(in srgb, var(--bad) 22%, transparent);
+}
+
+/* The card's own answer to the swipe.
+ *
+ * Both ends are handed in as custom properties, because a running animation overrides
+ * the inline transform the drag was using. A keyframe hardcoding `translateY(0)` at 0%
+ * therefore threw the card's 300px of drag away in a single frame — it teleported to
+ * rest and then did a small pop, which read as a glitch rather than as a spring.
+ *
+ * `--pop-from` is where the gesture actually left the card, so the animation picks it
+ * up mid-flight. `--pop-back` is the small overshoot past rest before it settles: for
+ * a drag that is a few pixels the other way, for a keyboard press (which starts at 0)
+ * it is the nudge in the called direction that gives the key an equivalent gesture. */
+@keyframes card-pop {
+  0% {
+    transform: translateY(var(--pop-from, 0px));
+  }
+  62% {
+    transform: translateY(var(--pop-back, 0px)) scaleY(1.01);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.card.popping {
+  animation: card-pop 0.4s cubic-bezier(0.16, 0.84, 0.44, 1);
+}
+
+/* Kept immediately after the rule it cancels, so source order does the work.
+ * app.ts already withholds the sparks; this covers the card's own motion. */
+@media (prefers-reduced-motion: reduce) {
+  .card.popping {
+    animation: none;
+  }
 }
 
 .card.swapping {
@@ -334,19 +395,17 @@ button:disabled {
   transition: opacity 0.15s ease-out;
 }
 
-.call-chip {
+/* Present for a screen reader, absent from the page. */
+.sr-only {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  font-family: var(--font-data);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  padding: 0.3rem 0.5rem;
-  border-radius: 5px;
-  background: var(--surface-2);
-  color: var(--muted);
-  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .verdict {
@@ -552,6 +611,15 @@ button:disabled {
   border: 1px dashed var(--line);
   color: var(--muted);
   opacity: 0.6;
+}
+
+/* Not a square that can be opened. Fainter than locked, and marked with a dash
+ * rather than a "?", so it does not read as a target still to be chased. */
+.cell.is-unasked {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  opacity: 0.32;
 }
 
 .cell.is-open {
@@ -840,58 +908,6 @@ button:disabled {
 
 .legend-note {
   flex-basis: 100%;
-  line-height: 1.5;
-}
-
-/* --- round-by-round trend --- */
-
-.trend-svg {
-  display: block;
-  width: 100%;
-  height: 120px;
-  overflow: visible;
-}
-
-/* vector-effect keeps the 2px stroke at 2px despite the non-uniform viewBox
-   scaling that lets the plot stretch to the container. */
-.tline {
-  fill: none;
-  stroke: var(--viz-pos);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.tbase {
-  stroke: var(--viz-grid);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-/* A zero-length stroke with a round cap: a true circle in device space, so the
-   non-uniform viewBox scaling cannot squash it into an ellipse. 8px meets the
-   minimum marker size and gives the hover title a usable target. */
-.tdot {
-  fill: none;
-  stroke: var(--viz-pos);
-  stroke-width: 8;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.trend-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.trend-note {
-  margin: 0.6rem 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
   line-height: 1.5;
 }
 

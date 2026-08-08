@@ -173,7 +173,138 @@ test("renderChart draws past the boundary once the future is revealed", () => {
   assert(beyond.length > 0, "revealed future bars should be drawn past the boundary");
 });
 
+test("renderChart keeps a band clear at the top for the caption", () => {
+  // The caption is drawn at the top of the plot. If the price scale runs all the way
+  // to y=0 the tallest candle lands underneath it, which is what put "NEXT 1 BAR" on
+  // top of the candles. Reserving the band fixes every horizon at once.
+  for (const horizon of [1, 5, 20]) {
+    const { ctx, calls } = recordingContext();
+    renderChart(ctx, rising(60), rising(horizon, 160), options({ revealCount: horizon }));
+    const tops = calls.filter((c) => c.method === "fillRect").map((r) => r.args[1] as number);
+    assert(tops.length > 0, `horizon ${horizon} drew no bars`);
+    assert(
+      Math.min(...tops) > 26,
+      `horizon ${horizon} drew a bar up at y=${Math.min(...tops)}, into the caption's band`,
+    );
+  }
+});
+
+test("renderChart still uses most of the plot for price", () => {
+  // The headroom must not quietly squash the chart into a strip.
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), [], options());
+  const tops = calls.filter((c) => c.method === "fillRect").map((r) => r.args[1] as number);
+  const spread = Math.max(...tops) - Math.min(...tops);
+  assert(spread > 100, `the price area collapsed to ${spread}px of a 300px canvas`);
+});
+
+// --- the forming bar: what makes a short horizon animate at all ---
+
+/** A future whose first bar has a real body and a real range, so growth is measurable. */
+const swing: Bar[] = [
+  { o: 160, h: 170, l: 158, c: 168, v: 2000 },
+  ...rising(4, 168),
+];
+
+/** The topmost pixel any bar is drawn to past the setup boundary. */
+function futureTop(revealCount: number): number {
+  const opts = options({ revealCount });
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), swing, opts);
+  const boundary = forecastGeometry(60, swing.length, opts.width - 44).setupWidth;
+  const beyond = calls
+    .filter((c) => c.method === "fillRect")
+    .filter((r) => (r.args[0] as number) + (r.args[2] as number) > boundary + 1);
+  assert(beyond.length > 0, `a reveal of ${revealCount} drew no future bar at all`);
+  return Math.min(...beyond.map((r) => r.args[1] as number));
+}
+
+test("renderChart draws the bar that is part way through arriving", () => {
+  // A fractional count is the whole fix for a one-bar horizon: with whole bars only,
+  // the single bar of a 1-bar question can only be absent or finished.
+  const opts = options({ revealCount: 0.4 });
+  const { ctx, calls } = recordingContext();
+  renderChart(ctx, rising(60), [swing[0]!], opts);
+  const boundary = forecastGeometry(60, 1, opts.width - 44).setupWidth;
+  const beyond = calls
+    .filter((c) => c.method === "fillRect")
+    .filter((r) => (r.args[0] as number) + (r.args[2] as number) > boundary + 1);
+  assert(beyond.length > 0, "the only bar of a one-bar horizon never started forming");
+});
+
+test("renderChart grows the forming bar out of the previous close", () => {
+  const early = futureTop(0.15);
+  const middle = futureTop(0.55);
+  const late = futureTop(0.95);
+  // Canvas y grows downward and this bar rises, so a growing bar reaches ever higher.
+  assert(
+    early > middle && middle > late,
+    `the forming bar did not grow: ${early}, ${middle}, ${late}`,
+  );
+});
+
+test("renderChart draws only whole bars when the count has no fraction", () => {
+  const { ctx, calls } = recordingContext();
+  const opts = options({ revealCount: 2 });
+  renderChart(ctx, rising(60), swing, opts);
+  const boundary = forecastGeometry(60, swing.length, opts.width - 44).setupWidth;
+  const beyond = calls
+    .filter((c) => c.method === "fillRect")
+    .filter((r) => (r.args[0] as number) + (r.args[2] as number) > boundary + 1);
+  // Wick, body and volume for each of the two bars, and nothing for a third.
+  assertEqual(beyond.length, 6, "an integer reveal must not start a third bar");
+});
+
+test("renderChart keeps the price scale still while a bar forms", () => {
+  // If the axis rescaled as the bar grew, the whole chart would creep under the
+  // reader for the length of the reveal. The scale steps once per bar instead.
+  const gridY = (revealCount: number): number[] => {
+    const { ctx, calls } = recordingContext();
+    renderChart(ctx, rising(60), swing, options({ revealCount }));
+    return calls.filter((c) => c.method === "moveTo").map((c) => c.args[1] as number);
+  };
+  assertEqual(gridY(0.2), gridY(0.9), "the gridlines moved while a single bar was forming");
+});
+
 // --- forecast zone: making the prediction horizon visible ---
+
+test("the shaded zone is exactly as wide as the bars it holds", () => {
+  // The complaint that prompted this: at a one-bar horizon the grey band was visibly
+  // wider than the single candle inside it, so the surplus read as missing data.
+  for (const horizon of [1, 5, 20]) {
+    const geometry = forecastGeometry(60, horizon, 356);
+    assertClose(
+      geometry.forecastSlot * horizon,
+      geometry.forecastWidth,
+      6,
+      `horizon ${horizon} leaves shading its bars do not fill`,
+    );
+  }
+});
+
+test("a one-bar forecast is a chunky candle, not a thin one adrift in grey", () => {
+  const one = forecastGeometry(60, 1, 356);
+  assert(
+    one.forecastSlot > one.setupSlot * 2,
+    `the single future bar (${one.forecastSlot.toFixed(1)}px) should dominate a setup ` +
+      `bar (${one.setupSlot.toFixed(1)}px)`,
+  );
+});
+
+test("the short-horizon allowance fades as the horizon lengthens", () => {
+  // Expressed as a ratio against the setup's own pitch: the allowance exists to
+  // rescue a horizon too short to see, so by 5 bars it should be a nudge and by 20
+  // it should be gone. A zone that stays inflated at 20 is no longer proportional,
+  // which is the honesty the width is there to carry.
+  const ratio = (horizon: number): number => {
+    const geometry = forecastGeometry(60, horizon, 356);
+    return geometry.forecastSlot / geometry.setupSlot;
+  };
+  assert(ratio(1) > 3, `a single bar needs real room, got ${ratio(1).toFixed(2)}x`);
+  assert(ratio(5) < 1.2, `five bars should be near the setup pitch, got ${ratio(5).toFixed(2)}x`);
+  assert(ratio(20) < 1.02, `twenty bars should be proportional, got ${ratio(20).toFixed(3)}x`);
+  assert(ratio(5) < ratio(1) && ratio(20) < ratio(5), "the allowance must decay");
+});
 
 test("forecastGeometry gives a one-bar horizon a visible zone", () => {
   const one = forecastGeometry(60, 1, 356);

@@ -19,9 +19,13 @@
           <div id="demo-hand" class="demo-hand">▲</div>
         </div>
 
+        <!-- Deliberately does not repeat the swipe instruction. The tagline above
+             gives it once and the card above plays it; saying it a third time in
+             the same screenful is filler. This line earns its place by saying what
+             the tagline cannot: how long it is, and what has been taken away. -->
         <p class="lede">
-          Ten charts. No ticker, no dates, no company. Swipe up if you think it
-          went up.
+          Ten charts, one call each. No ticker, no dates, no company — the shape is
+          all you get.
         </p>
         <p id="start-summary" class="muted"></p>
         <button id="start-button" class="primary">Start</button>
@@ -35,12 +39,21 @@
             <span id="progress" class="muted"></span>
           </div>
         </div>
-        <div id="card" class="card">
-          <canvas id="chart-canvas"></canvas>
-          <div class="hint hint-up">up</div>
-          <div class="hint hint-down">down</div>
-          <div id="call-chip" class="call-chip" hidden></div>
+        <div class="card-stage">
+          <div id="card" class="card">
+            <canvas id="chart-canvas"></canvas>
+            <div class="hint hint-up" aria-hidden="true">▲</div>
+            <div class="hint hint-down" aria-hidden="true">▼</div>
+          </div>
+          <!-- Sparks live outside the card so a drag leaves them behind rather than
+               dragging them along, which is the difference between a trail and a
+               decoration. Purely decorative, so it is hidden from assistive tech. -->
+          <canvas id="spark-canvas" class="sparks" aria-hidden="true"></canvas>
         </div>
+        <!-- The call, for a reader who cannot see the tint or the sparks. On screen
+             it is carried by the animation alone — saying "you said up" back to
+             someone who just swiped up is noise. -->
+        <p id="call-announce" class="sr-only" role="status"></p>
         <div id="verdict" class="verdict"></div>
         <div id="speed" class="speed"></div>
       </section>

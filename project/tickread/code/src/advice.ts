@@ -11,6 +11,7 @@
  * Pure and DOM-free. See specs/advice.md.
  */
 
+import { isAskable } from "./deck.js";
 import { classify, MIN_SAMPLE, wilsonInterval } from "./stats.js";
 import {
   HORIZON_ORDER,
@@ -66,26 +67,9 @@ export function answersNeededForVerdict(accuracy: number, from: number): number 
   return null;
 }
 
-/**
- * Accuracy per completed round, oldest first.
- *
- * A trailing partial round is dropped rather than plotted: a point built from three
- * answers would swing to 0% or 100% on the next card and read as a collapse in form
- * when it is just a small denominator.
- */
-export function roundAccuracies(
-  records: readonly { correct: boolean }[],
-  roundSize: number,
-): number[] {
-  const size = Math.max(1, Math.floor(roundSize));
-  const out: number[] = [];
-  for (let start = 0; start + size <= records.length; start += size) {
-    let correct = 0;
-    for (let i = start; i < start + size; i++) if (records[i]!.correct) correct++;
-    out.push(correct / size);
-  }
-  return out;
-}
+// `roundAccuracies` lived here, feeding a round-by-round line in the report. Both
+// are gone: at ten answers a round, the line plotted sampling noise as form. See the
+// note where the chart used to be in `report-view.ts`.
 
 // --- the character sheet -----------------------------------------------------
 
@@ -148,7 +132,7 @@ export function gradeFor(overall: BucketStat): Grade {
   return { letter: "F", provisional };
 }
 
-export type SkillState = "locked" | "open" | "cleared" | "failed";
+export type SkillState = "locked" | "open" | "cleared" | "failed" | "unasked";
 
 export interface SkillCell {
   timeframe: Timeframe;
@@ -167,11 +151,22 @@ export interface SkillCell {
  * unknown, with the answers still needed. The statistical gate and the fog of war
  * turn out to be the same idea, which is why this reads as a reward rather than as
  * the report refusing to talk.
+ *
+ * All twelve are still returned even though one is never asked, so the grid keeps its
+ * shape. That one comes back `unasked`, which is a different thing from `locked`:
+ * locked is "you have not done this yet", unasked is "this is not on the map". Giving
+ * it the locked treatment would set the player chasing a square that can never open.
  */
 export function skillGrid(records: readonly AnswerRecord[]): SkillCell[] {
   const cells: SkillCell[] = [];
   for (const timeframe of TIMEFRAME_ORDER) {
     for (const horizon of HORIZON_ORDER) {
+      if (!isAskable(timeframe, horizon)) {
+        cells.push({
+          timeframe, horizon, total: 0, correct: 0, accuracy: null, state: "unasked",
+        });
+        continue;
+      }
       const hits = records.filter((r) => r.timeframe === timeframe && r.horizon === horizon);
       const total = hits.length;
       const correct = hits.filter((r) => r.correct).length;

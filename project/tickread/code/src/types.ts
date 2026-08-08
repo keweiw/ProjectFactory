@@ -59,6 +59,21 @@ export const TIMEFRAME_ORDER: readonly Timeframe[] = ["1m", "1h", "1d", "1mo"];
 export const HORIZON_ORDER: readonly Horizon[] = [1, 5, 20];
 
 /**
+ * Timeframe × horizon pairs the game refuses to ask.
+ *
+ * The next one-minute bar is not a hard question, it is an unanswerable one: at that
+ * scale the next print is bid-ask bounce and order flow, with no move large enough
+ * for anything visible in the previous sixty bars to bear on. Every other cell asks
+ * something a reader can in principle get better at; this one asks them to call a
+ * coin, then reports — correctly — that they cannot beat a coin flip.
+ *
+ * Shipped questions for it stay in the bank. This is a rule about what to ask, so it
+ * lives with the other shared constants rather than in the offline data build, and
+ * history recorded before the rule existed still reports honestly.
+ */
+export const UNASKED_STRATA: ReadonlySet<string> = new Set(["1m|1"]);
+
+/**
  * How a timeframe and an asset class are written for a reader. Constant lookup
  * tables, in the same category as the ORDER arrays above and declared here for the
  * same reason: both `app` (the card header) and `report-view` (the bucket labels)

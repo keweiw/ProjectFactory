@@ -15,7 +15,11 @@ export type DemoPhase = "settle" | "poise" | "swipe" | "reveal" | "rest";
 
 export interface DemoFrame {
   phase: DemoPhase;
-  /** Bars of the future to draw. 0 until the swipe has committed. */
+  /**
+   * Bars of the future to draw. 0 until the swipe has committed, and fractional
+   * once it has — see `ChartOptions.revealCount`. Whole bars alone gave a one-bar
+   * demo question a single jump instead of a reveal.
+   */
   revealCount: number;
   /**
    * Vertical offset of the ghost card as a fraction of its own height: -1 is one
@@ -90,7 +94,7 @@ export function demoFrame(elapsedMs: number, horizonBars: number): DemoFrame {
     const progress = (t - REVEAL_AT) / REVEAL_MS;
     return {
       phase: "reveal",
-      revealCount: Math.min(revealed, Math.ceil(progress * revealed)),
+      revealCount: Math.min(revealed, easeOut(progress) * revealed),
       cardOffset: 0,
       direction: "up",
       handOpacity: 0,

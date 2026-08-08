@@ -44,6 +44,15 @@ hosting cost.
 Each question shows **60 setup bars** and asks the direction of the close
 `horizon` bars later, relative to the last setup close.
 
+**One pair of the timeframe × horizon grid is never asked: `1m` at horizon `1`.**
+The next one-minute bar is bid-ask bounce and order flow — there is no move large
+enough for anything in the previous sixty bars to bear on, so the question is not
+hard but unanswerable, and a stratum nobody can beat drags every all-time number
+toward 50% while teaching the player nothing. The rule lives in `UNASKED_STRATA`
+(`src/types.ts`) and is applied by `deck.drawDeck`, not by the offline build: the
+bank still ships those questions, so history recorded before the rule still reports
+honestly, and the skill map shows the square as `unasked` rather than `locked`.
+
 Actual coverage of the asset-class × timeframe grid is **not hardcoded**. The build
 script probes what each data source actually returns and records the result in
 `data/manifest.json`. The UI reads the manifest and only offers buckets that exist,
@@ -190,7 +199,8 @@ relative so the site works under any base path.
 | `src/chart.ts` | Pure canvas renderer: `(ctx, bars, opts) => void`. Candles + volume panel + reveal state | `types` |
 | `src/session.ts` | One round's state machine: current index, record answer + response time, advance | `types`, `persona` |
 | `src/stats.ts` | Wilson intervals, bucketed accuracy, significance test | `types` |
-| `src/advice.ts` | Scorecard → a verdict in words, gated on the same significance rule; round-by-round trend series | `types`, `stats` |
+| `src/advice.ts` | Scorecard → a verdict in words, gated on the same significance rule | `types`, `stats` |
+| `src/spark.ts` | Pure particle model for the swipe sparkle: `(spark, now) => frame`. No DOM, injected randomness | `types` |
 | `src/persona.ts` | Behavioural metrics and label derivation | `types` |
 | `src/storage.ts` | `localStorage` persistence of cumulative history and seen-question ids | `types` |
 | `src/app.ts` | Entry point: view switching, pointer/keyboard gestures, DOM assembly | all |

@@ -2,6 +2,7 @@ import { test, assert, assertEqual } from "./harness.js";
 import {
   DEFAULT_DECK_SIZE,
   drawDeck,
+  isAskable,
   loadManifest,
   loadShard,
   buildRound,
@@ -53,6 +54,37 @@ function fullPool(perStratum: number): Question[] {
   return out;
 }
 
+// --- the strata the game refuses to ask ---
+
+test("drawDeck never deals a one-bar question on the minute chart", () => {
+  // The next one-minute bar is bid-ask noise. Asking it produces a stratum nobody can
+  // beat, which drags the all-time numbers toward 50% while teaching nothing.
+  for (let seed = 1; seed <= 25; seed++) {
+    const drawn = drawDeck(fullPool(20), { random: seeded(seed), size: 12 });
+    const offending = drawn.filter((q) => q.timeframe === "1m" && q.horizon === 1);
+    assertEqual(offending.length, 0, `seed ${seed} dealt a 1m one-bar question`);
+  }
+});
+
+test("drawDeck still fills a round from the strata that remain", () => {
+  const drawn = drawDeck(fullPool(20), { random: seeded(3) });
+  assertEqual(drawn.length, DEFAULT_DECK_SIZE, "excluding a stratum must not short the round");
+});
+
+test("drawDeck returns nothing when every question is one the game will not ask", () => {
+  const pool = Array.from({ length: 8 }, () => question("1m", 1));
+  assertEqual(drawDeck(pool, { random: seeded(1) }), []);
+});
+
+test("isAskable names the excluded pair and nothing else", () => {
+  assert(!isAskable("1m", 1), "1m one-bar must be off the map");
+  for (const [timeframe, horizon] of [
+    ["1m", 5], ["1m", 20], ["1h", 1], ["1d", 1], ["1mo", 1],
+  ] as [Timeframe, Horizon][]) {
+    assert(isAskable(timeframe, horizon), `${timeframe}|${horizon} should still be asked`);
+  }
+});
+
 test("drawDeck defaults to ten questions", () => {
   assertEqual(DEFAULT_DECK_SIZE, 10);
   assertEqual(drawDeck(fullPool(20), { random: seeded(1) }).length, 10);
@@ -68,10 +100,12 @@ test("drawDeck never repeats a question within a round", () => {
   assertEqual(new Set(deck.map((q) => q.id)).size, deck.length);
 });
 
-test("drawDeck covers every stratum when the round is large enough", () => {
+test("drawDeck covers every stratum it is willing to ask", () => {
   const deck = drawDeck(fullPool(20), { size: 12, random: seeded(3) });
   const strata = new Set(deck.map((q) => `${q.timeframe}|${q.horizon}`));
-  assertEqual(strata.size, 12, "all twelve timeframe/horizon strata appear");
+  // Eleven, not twelve: the minute chart's one-bar square is not asked.
+  assertEqual(strata.size, 11, "every askable timeframe/horizon stratum appears");
+  assert(!strata.has("1m|1"), "the unasked stratum must not appear");
 });
 
 test("drawDeck does not starve a thin stratum", () => {
@@ -121,9 +155,9 @@ test("drawDeck does not repair the sampled answer mix", () => {
 });
 
 test("drawDeck returns the whole pool when it is smaller than the round", () => {
-  const pool = fullPool(1); // 12 questions
+  const pool = fullPool(1); // 12 questions, one of which the game will not ask
   const deck = drawDeck(pool, { size: 20, random: seeded(7) });
-  assertEqual(deck.length, 12);
+  assertEqual(deck.length, 11);
 });
 
 test("drawDeck returns nothing for an empty pool or a non-positive size", () => {

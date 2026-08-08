@@ -5,7 +5,6 @@ import {
   buildAdvice,
   gradeFor,
   personaShape,
-  roundAccuracies,
   skillGrid,
 } from "../src/advice.js";
 import { buildScorecard, wilsonInterval } from "../src/stats.js";
@@ -83,29 +82,9 @@ test("answersNeededForVerdict never proposes fewer answers than you already have
   assert(needed !== null && needed >= 400, `projected backwards to ${needed}`);
 });
 
-// --- roundAccuracies: the trend line ---
-
-test("roundAccuracies gives one point per completed round", () => {
-  assertEqual(roundAccuracies(run(15, 30), 10).length, 3);
-});
-
-test("roundAccuracies drops a trailing partial round", () => {
-  // 24 answers at a round size of 10 is two rounds and a fragment. The fragment
-  // would swing wildly on the next card and read as a collapse in form.
-  assertEqual(roundAccuracies(run(12, 24), 10).length, 2);
-  assertEqual(roundAccuracies(run(5, 9), 10).length, 0, "no complete round yet");
-});
-
-test("roundAccuracies reports each round's own accuracy in order", () => {
-  // First ten all correct, second ten all wrong.
-  const records = [...run(10, 10), ...run(0, 10)];
-  assertEqual(roundAccuracies(records, 10), [1, 0]);
-});
-
-test("roundAccuracies survives a degenerate round size", () => {
-  assertEqual(roundAccuracies(run(2, 4), 0).length, 4, "a zero size must not divide by zero");
-  assertEqual(roundAccuracies([], 10), []);
-});
+// The four `roundAccuracies` tests that were here went with the function. A ten-answer
+// round carries about 16 points of sampling noise, so the line they fed showed form
+// where there was none.
 
 // --- the character sheet ---
 
@@ -171,9 +150,28 @@ test("skillGrid always returns all twelve cells", () => {
   assertEqual(skillGrid(run(5, 10)).length, 12, "cells exist whether or not they were played");
 });
 
+test("skillGrid marks a stratum the game never asks as unasked, not locked", () => {
+  // Locked means "you have not done this yet" and invites the player to go and do it.
+  // The minute chart's one-bar square can never open, so saying locked would be a lie
+  // dressed as a goal.
+  const cell = skillGrid([]).find((c) => c.timeframe === "1m" && c.horizon === 1)!;
+  assertEqual(cell.state, "unasked");
+  assertEqual(cell.accuracy, null, "an unasked square must not report a number");
+  assertEqual(cell.total, 0);
+});
+
+test("skillGrid keeps every other square lockable", () => {
+  const unasked = skillGrid([]).filter((c) => c.state === "unasked");
+  assertEqual(unasked.length, 1, "only the one pair is off the map");
+});
+
 test("skillGrid locks a cell that has never been answered", () => {
   const cells = skillGrid([]);
-  assert(cells.every((c) => c.state === "locked"), "an empty history locks everything");
+  assert(
+    cells.every((c) => c.state === "locked" || c.state === "unasked"),
+    "an empty history locks every square that can be opened at all",
+  );
+  assert(cells.some((c) => c.state === "locked"), "locked must still be reachable");
   assert(cells.every((c) => c.accuracy === null), "a locked cell has no accuracy to show");
 });
 

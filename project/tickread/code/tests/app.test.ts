@@ -3,8 +3,11 @@ import {
   shouldCommit,
   describeQuestion,
   describeOutcome,
+  describeHistory,
   revealTimeline,
-  REVEAL_MS,
+  revealDurationMs,
+  MIN_REVEAL_MS,
+  MAX_REVEAL_MS,
   HOLD_MS,
 } from "../src/app.js";
 import { formatMetric } from "../src/report-view.js";
@@ -170,39 +173,120 @@ test("formatMetric renders milliseconds as seconds", () => {
   assertEqual(formatMetric(2500, "ms"), "2.5s");
 });
 
+// --- describeHistory: the first line a returning player reads ---
+
+test("describeHistory does not say 'about 1 rounds'", () => {
+  const shown = describeHistory(10, 10);
+  assert(!/\b1 rounds\b/.test(shown), `plural bug: ${shown}`);
+  assert(shown.includes("1 round"), shown);
+});
+
+test("describeHistory drops the hedge when the rounds divide exactly", () => {
+  // Records are appended a whole finished round at a time, so this is the normal case
+  // and "about" would be hedging a number that is not uncertain.
+  assert(!describeHistory(30, 10).includes("about"), describeHistory(30, 10));
+  assert(describeHistory(30, 10).includes("3 rounds"), describeHistory(30, 10));
+});
+
+test("describeHistory hedges only when the division is not exact", () => {
+  const shown = describeHistory(25, 10);
+  assert(shown.includes("about"), `an inexact count should be hedged: ${shown}`);
+});
+
+test("describeHistory counts the answers themselves", () => {
+  assert(describeHistory(1, 10).includes("1 answer "), describeHistory(1, 10));
+  assert(describeHistory(2, 10).includes("2 answers"), describeHistory(2, 10));
+});
+
+test("describeHistory says nothing when there is no history", () => {
+  assertEqual(describeHistory(0, 10), "");
+});
+
+test("describeHistory survives a degenerate deck size", () => {
+  const shown = describeHistory(10, 0);
+  assert(shown.length > 0 && !shown.includes("Infinity") && !shown.includes("NaN"), shown);
+});
+
 // --- revealTimeline: the sequencing that used to happen off screen ---
+//
+// The shipped horizons are 1, 5 and 20 bars, so `steps` is only ever one of those
+// three. The reveal used to be a fixed budget cut into `steps` whole bars, which
+// meant the animation existed at 20, barely existed at 5, and at 1 was a single
+// bar forced on at the first frame — no animation at all. Everything below is
+// about the count being continuous and the duration following the bar count.
 
 test("revealTimeline draws nothing before the reveal starts", () => {
   assertEqual(revealTimeline(0, 20), { revealCount: 0, done: false });
 });
 
-test("revealTimeline draws at least one bar the instant it starts", () => {
-  assertEqual(revealTimeline(1, 20).revealCount, 1);
+test("revealTimeline eases the first bar in rather than popping it whole", () => {
+  const early = revealTimeline(8, 20).revealCount;
+  assert(early > 0, "the reveal must have started by the first frame");
+  assert(early < 1, `the first bar must still be forming at 8ms, got ${early}`);
 });
 
-test("revealTimeline has drawn every bar by REVEAL_MS", () => {
-  assertEqual(revealTimeline(REVEAL_MS, 20), { revealCount: 20, done: false });
+test("revealTimeline animates a one-bar horizon instead of finishing instantly", () => {
+  const first = revealTimeline(8, 1).revealCount;
+  assert(first > 0 && first < 1, `a one-bar horizon jumped straight to ${first}`);
+  const middle = revealTimeline(revealDurationMs(1) / 2, 1).revealCount;
+  assert(middle > first, `the bar stopped growing: ${first} then ${middle}`);
+  assert(middle < 1, `the bar was already complete at the midpoint: ${middle}`);
+});
+
+test("every shipped horizon gets frames to animate with", () => {
+  // The bug the user could see: at 20 bars there were 20 distinct states to watch,
+  // at 1 bar there was exactly one. A horizon must never be a single jump.
+  for (const steps of [1, 5, 20]) {
+    const duration = revealDurationMs(steps);
+    const seen = new Set<string>();
+    for (let t = 0; t <= duration; t += 16) {
+      seen.add(revealTimeline(t, steps).revealCount.toFixed(3));
+    }
+    assert(seen.size >= 12, `horizon ${steps} only produced ${seen.size} distinct frames`);
+  }
+});
+
+test("revealTimeline has drawn every bar by the end of its own duration", () => {
+  for (const steps of [1, 5, 20]) {
+    assertEqual(
+      revealTimeline(revealDurationMs(steps), steps).revealCount,
+      steps,
+      `horizon ${steps} did not finish`,
+    );
+  }
+});
+
+test("revealDurationMs gives a longer horizon more time, within bounds", () => {
+  assert(
+    revealDurationMs(20) > revealDurationMs(5),
+    "twenty bars must not be rushed through the same budget as five",
+  );
+  assert(revealDurationMs(1) >= MIN_REVEAL_MS, "one bar still needs long enough to be seen");
+  assert(revealDurationMs(500) <= MAX_REVEAL_MS, "the reveal must not become a wait");
 });
 
 test("revealTimeline is done only after the hold has elapsed", () => {
-  assertEqual(revealTimeline(REVEAL_MS + HOLD_MS - 1, 20).done, false);
-  assertEqual(revealTimeline(REVEAL_MS + HOLD_MS, 20).done, true);
+  const duration = revealDurationMs(20);
+  assertEqual(revealTimeline(duration + HOLD_MS - 1, 20).done, false);
+  assertEqual(revealTimeline(duration + HOLD_MS, 20).done, true);
 });
 
 test("revealTimeline never draws more bars than it was given", () => {
-  assertEqual(revealTimeline(REVEAL_MS * 4, 5).revealCount, 5);
-});
-
-test("revealTimeline handles a one-bar horizon", () => {
-  assertEqual(revealTimeline(1, 1).revealCount, 1);
-  assertEqual(revealTimeline(REVEAL_MS, 1).revealCount, 1);
+  assertEqual(revealTimeline(revealDurationMs(5) * 4, 5).revealCount, 5);
 });
 
 test("revealTimeline advances monotonically", () => {
-  let previous = 0;
-  for (let t = 0; t <= REVEAL_MS; t += 25) {
-    const count = revealTimeline(t, 20).revealCount;
-    assert(count >= previous, `reveal went backwards at ${t}ms: ${previous} then ${count}`);
-    previous = count;
+  for (const steps of [1, 5, 20]) {
+    let previous = 0;
+    for (let t = 0; t <= revealDurationMs(steps); t += 7) {
+      const count = revealTimeline(t, steps).revealCount;
+      assert(count >= previous, `reveal went backwards at ${t}ms: ${previous} then ${count}`);
+      previous = count;
+    }
   }
+});
+
+test("revealTimeline survives a question with no future to reveal", () => {
+  assertEqual(revealTimeline(50, 0).revealCount, 0);
+  assert(revealTimeline(10_000, 0).done, "a futureless question must still finish");
 });

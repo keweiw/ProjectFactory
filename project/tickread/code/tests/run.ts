@@ -14,6 +14,7 @@ import "./chart.test.js";
 import "./advice.test.js";
 import "./streak.test.js";
 import "./demo.test.js";
+import "./spark.test.js";
 import "./app.test.js";
 
 async function main(): Promise<void> {
