@@ -3,3 +3,8 @@
 # Snapshots, screenshots and console logs written by the Playwright MCP server
 # when an agent drives the site in a browser. Debugging output, not source.
 .playwright-mcp/
+
+# `npx skills add` writes each skill twice: once to .agents/skills/ (the canonical,
+# tool-agnostic copy, which is committed) and once here as the copy Claude Code
+# reads. Same bytes, generated from skills-lock.json — no reason to store both.
+.claude/skills/
