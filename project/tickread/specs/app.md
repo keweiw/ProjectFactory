@@ -38,7 +38,7 @@ export function main(): void;
 | `card` | `<div>` | The draggable card |
 | `chart-canvas` | `<canvas>` | Passed to `renderChart` |
 | `card-meta` | `<div>` | Timeframe, asset class, horizon line |
-| `progress` | `<div>` | "7 / 20" |
+| `progress` | `<div>` | "7 / 10" |
 | `verdict` | `<div>` | Correct/incorrect flash after a swipe |
 | `report-body` | `<div>` | Scorecard and persona output |
 | `report-mode` | `<div>` | "This round" / "All time" toggle |
@@ -115,7 +115,7 @@ corrupt a round.
    round's records via `appendRecords` and switch to the report view.
 
 Records are persisted **once at the end of the round**, not per answer — one write
-instead of twenty, and a quota failure then costs the whole round's history rather
+instead of ten, and a quota failure then costs the whole round's history rather
 than corrupting a partial one.
 
 ### Report
@@ -164,7 +164,7 @@ Automated:
 
 Manual, recorded in `summaries/app-test.md`:
 
-- A full 20-question round on desktop with mouse drag and with arrow keys.
+- A full 10-question round on desktop with mouse drag and with arrow keys.
 - A full round on a touch device, checking that vertical page scroll does not fight
   the horizontal drag.
 - Reveal animation runs at each horizon: 1, 5, and 20 bars.

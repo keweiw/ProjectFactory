@@ -7,8 +7,8 @@
 
 Persists cumulative answer history and the set of already-served question ids in
 `localStorage`. History is what makes the scorecard eventually significant — a
-single 20-question round can almost never clear the `n ≥ 8` gate on a per-bucket
-basis, so the report's "all time" mode depends entirely on this module.
+single 10-question round can never clear the `n ≥ 8` gate on a per-bucket basis, so
+the report's "all time" mode depends entirely on this module.
 
 Isolates every `localStorage` access in the app behind one interface, so the storage
 backend is injectable and the whole module is testable without a browser.

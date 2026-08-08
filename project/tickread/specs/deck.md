@@ -5,15 +5,23 @@
 
 ## Purpose
 
-Assembles one round of 20 questions. Reads the manifest to learn what the bank
-actually contains, lazily loads only the shards it needs, draws a stratified sample
-across timeframes and horizons, prefers questions the user has not seen, and repairs
-the up/down balance of the drawn round.
+Assembles one round of `DEFAULT_DECK_SIZE` questions — **10**. Reads the manifest to
+learn what the bank actually contains, lazily loads only the shards it needs, draws a
+stratified sample across timeframes and horizons, and prefers questions the user has
+not seen.
 
-The stratification and the balance repair are what make the report interpretable.
-A uniform random draw would leave some report buckets empty and could hand the user
-a round that is 15 up — against which swiping right on everything scores 75% and the
-scorecard lies.
+The stratification is what makes the report interpretable. A uniform random draw
+would leave report buckets empty.
+
+The up/down mix is **left exactly as sampled**. The bank is balanced per bucket
+offline by `build_deck.py::balance_buckets`, so a live round's imbalance is only
+sampling noise — and swapping answers into a drawn round to correct it would bias
+which charts the round can contain, which is the worse fault.
+
+Ten rather than twenty: a round has to be finishable in one sitting for the
+immediate-feedback loop to be worth anything. The statistics are unaffected, because
+they come from all-time history, which accumulates across rounds regardless of round
+length. The `n ≥ 8` significance gate is **unchanged**.
 
 The network functions are thin and isolated; `drawDeck` is pure and holds all the
 logic.
@@ -21,8 +29,10 @@ logic.
 ## Interfaces
 
 ```ts
+export const DEFAULT_DECK_SIZE = 10;
+
 export interface DeckOptions {
-  size?: number;                    // default 20
+  size?: number;                    // default DEFAULT_DECK_SIZE (10)
   seen?: ReadonlySet<string>;       // default empty
   random?: () => number;            // default Math.random; inject for determinism
 }
@@ -75,29 +85,22 @@ pipeline; persists nothing itself.
    time, until `size` is reached or the pool is exhausted. Round-robin rather than
    proportional allocation keeps thin strata represented — otherwise a bank with far
    more daily than monthly questions would rarely show a monthly chart.
-4. Run the balance repair below.
-5. Return the selected questions in a final shuffled order, so the user cannot infer
+4. Return the selected questions in a final shuffled order, so the user cannot infer
    anything from the sequence in which strata appear.
 
-### Balance repair
+There is **no post-selection answer-balance repair**; see Purpose. A round's up/down
+mix is whatever step 3 produced.
 
-After selection, count `up` and `down` answers. While the difference exceeds 1:
+### Coverage
 
-- Pick a selected question whose answer is the over-represented direction.
-- Look for an unselected question with the opposite answer **in the same stratum**;
-  if none exists, allow any stratum.
-- Swap them and recount.
-
-This is **best effort**. If no swap candidate exists the imbalance is accepted and
-the round proceeds — a slightly unbalanced round is better than a failed one, and
-the bank is already balanced per bucket, so this only corrects sampling noise.
-
-The loop is bounded by the number of selected questions to guarantee termination
-even if a swap fails to improve the count.
+Twelve `(timeframe, horizon)` strata exist and a round is ten questions, so a round
+covers **ten of the twelve** and is not required to cover them all. The round-robin
+guarantee is that no stratum is starved across rounds, not that every stratum appears
+in any one round.
 
 ### Edge cases
 
-- `pool` smaller than `size` → return the whole pool, shuffled and balance-repaired.
+- `pool` smaller than `size` → return the whole pool, shuffled.
 - Empty pool → return `[]`. `app.ts` renders a data-error message; this is not an
   exception because an empty bank is a build problem, not a runtime fault.
 - Every question already seen → the seen-preference is a sort key, not a filter, so
@@ -124,6 +127,7 @@ even if a swap fails to improve the count.
 `drawDeck` is tested with a **seeded deterministic `random`** and fabricated
 questions; no test touches the network.
 
+- `DEFAULT_DECK_SIZE` is `10`, and a draw with no explicit `size` returns ten.
 - A pool spanning several strata produces a round of exactly `size`.
 - Every stratum present in the pool appears in the round when `size` is at least the
   number of strata — the round-robin guarantee.
@@ -133,9 +137,8 @@ questions; no test touches the network.
   pool, the round contains only unseen questions.
 - All-seen pool still returns a full round.
 - No duplicate question ids within a round.
-- Balance: across many seeds, `|up − down| <= 1` whenever the pool can supply it.
-- Balance repair terminates on a pool that is entirely one direction, returning an
-  unbalanced round rather than looping.
+- The sampled answer mix is **not** repaired: a pool whose first ten questions are
+  all `up` yields a round that is all `up`.
 - `pool` shorter than `size`, empty pool, and `size <= 0` return the documented results.
 - Determinism: the same seed and pool produce the identical round twice.
 

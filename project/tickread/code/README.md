@@ -1,7 +1,7 @@
 # tickread
 
 A swipe-based market intuition test. You are shown an anonymised candlestick and
-volume chart and swipe **up for up**, **down for down**. Twenty questions, then a
+volume chart and swipe **up for up**, **down for down**. Ten questions, then a
 report covering where you are actually good and how you tend to decide.
 
 Static site. No backend, no API keys at runtime, no hosting cost — the question bank

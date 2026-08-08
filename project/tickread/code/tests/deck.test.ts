@@ -1,5 +1,11 @@
 import { test, assert, assertEqual } from "./harness.js";
-import { drawDeck, loadManifest, loadShard, buildRound } from "../src/deck.js";
+import {
+  DEFAULT_DECK_SIZE,
+  drawDeck,
+  loadManifest,
+  loadShard,
+  buildRound,
+} from "../src/deck.js";
 import type { Bar, Direction, Horizon, Manifest, Question, Timeframe } from "../src/types.js";
 
 /** Deterministic PRNG so a failing draw can be reproduced from its seed. */
@@ -46,6 +52,11 @@ function fullPool(perStratum: number): Question[] {
   }
   return out;
 }
+
+test("drawDeck defaults to ten questions", () => {
+  assertEqual(DEFAULT_DECK_SIZE, 10);
+  assertEqual(drawDeck(fullPool(20), { random: seeded(1) }).length, 10);
+});
 
 test("drawDeck returns exactly the requested size", () => {
   const deck = drawDeck(fullPool(20), { size: 20, random: seeded(1) });
@@ -94,22 +105,19 @@ test("drawDeck still fills a round when everything has been seen", () => {
   assertEqual(deck.length, 20, "seen is a sort key, not a filter");
 });
 
-test("drawDeck balances up and down answers", () => {
-  for (let seed = 1; seed <= 25; seed++) {
-    const deck = drawDeck(fullPool(20), { size: 20, random: seeded(seed) });
-    const up = deck.filter((q) => q.answer === "up").length;
-    assert(
-      Math.abs(up - (deck.length - up)) <= 1,
-      `seed ${seed} gave ${up} up out of ${deck.length}`,
-    );
-  }
-});
-
-test("drawDeck accepts an unbalanced round rather than looping forever", () => {
-  const pool = Array.from({ length: 40 }, () => question("1d", 5, "up"));
-  const deck = drawDeck(pool, { size: 20, random: seeded(6) });
-  assertEqual(deck.length, 20);
-  assertEqual(deck.every((q) => q.answer === "up"), true);
+test("drawDeck does not repair the sampled answer mix", () => {
+  // The bank is balanced per bucket offline, so a round is allowed to come out
+  // lopsided. Reaching back into the pool to swap answers in would bias which
+  // charts a round can contain, which is a worse problem than sampling noise.
+  const pool = [
+    ...Array.from({ length: 10 }, () => question("1d", 5, "up")),
+    ...Array.from({ length: 10 }, () => question("1d", 5, "down")),
+  ];
+  // A random that always returns ~1 makes the shuffle the identity, so the ten
+  // "up" questions at the front of the pool are exactly what gets drawn.
+  const deck = drawDeck(pool, { size: 10, random: () => 0.999999 });
+  assertEqual(deck.length, 10);
+  assertEqual(deck.every((q) => q.answer === "up"), true, "the mix must be left alone");
 });
 
 test("drawDeck returns the whole pool when it is smaller than the round", () => {
