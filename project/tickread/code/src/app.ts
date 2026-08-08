@@ -12,6 +12,7 @@
 import { buildRound, DEFAULT_DECK_SIZE } from "./deck.js";
 import { renderChart, DEFAULT_THEME } from "./chart.js";
 import { renderReport } from "./report-view.js";
+import { currentStreak, tapeGlyphs } from "./tape.js";
 import { answer, createSession, currentQuestion, isFinished, progress } from "./session.js";
 import { createHistoryStore, type HistoryStore } from "./storage.js";
 import {
@@ -112,6 +113,17 @@ export function describeOutcome(question: Question, correct: boolean): string {
 }
 
 
+/**
+ * Filled means a hit, hollow means a miss, and the triangle points the way the
+ * player called it. Two channels, neither of them colour.
+ */
+const GLYPH: Record<string, string> = {
+  "up-hit": "▲",
+  "up-miss": "△",
+  "down-hit": "▼",
+  "down-miss": "▽",
+};
+
 // --- DOM wiring ---------------------------------------------------------------
 
 interface Elements {
@@ -123,6 +135,7 @@ const REQUIRED_IDS = [
   "start-button", "card", "chart-canvas", "card-meta", "progress",
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
   "start-summary", "error-retry", "call-chip",
+  "tape-strip", "tape-glyphs", "tape-streak", "speed",
 ];
 
 function resolveElements(): Elements {
@@ -198,6 +211,7 @@ export function main(): void {
     elements["call-chip"]!.hidden = true;
     elements["verdict"]!.textContent = "";
     elements["verdict"]!.className = "verdict";
+    elements["speed"]!.textContent = "";
     elements["card-meta"]!.textContent = describeQuestion(question);
     const { answered, total } = progress(state.session);
     elements["progress"]!.textContent = `${answered + 1} / ${total}`;
@@ -224,6 +238,31 @@ export function main(): void {
   }
 
   /**
+   * The tape. Rebuilt whole on each answer rather than appended to: ten glyphs is
+   * nothing to rebuild, and a single source of truth beats keeping the DOM and the
+   * records in step by hand.
+   */
+  function renderTape(): void {
+    const records = state.session.records;
+    const cells = tapeGlyphs(records).map((glyph) => {
+      const mark = GLYPH[`${glyph.call}-${glyph.hit ? "hit" : "miss"}`]!;
+      const classes = `glyph glyph-${glyph.call} ${glyph.hit ? "hit" : "miss"}`;
+      const label = `${glyph.call === "up" ? "called up" : "called down"}, ${
+        glyph.hit ? "right" : "wrong"
+      }`;
+      return `<span class="${classes}" title="${label}">${mark}</span>`;
+    });
+    if (records.length < state.session.questions.length) {
+      cells.push(`<span class="glyph cursor" aria-hidden="true">▮</span>`);
+    }
+    elements["tape-glyphs"]!.innerHTML = cells.join("");
+
+    const streak = currentStreak(records);
+    // One hit is not a streak; saying so every time would make the word worthless.
+    elements["tape-streak"]!.textContent = streak >= 2 ? `streak ${streak}` : "";
+  }
+
+  /**
    * The verdict lands with the last bar, not with the swipe. Showing it up front
    * would answer the question before the chart has finished answering it.
    */
@@ -231,6 +270,9 @@ export function main(): void {
     const verdict = elements["verdict"]!;
     verdict.textContent = describeOutcome(question, record.correct);
     verdict.className = `verdict ${record.correct ? "good" : "bad"}`;
+    // Already recorded on every answer since the first release, and never shown.
+    elements["speed"]!.textContent = `${(record.responseMs / 1000).toFixed(1)}s`;
+    renderTape();
   }
 
   /** Cross-fade to the next chart. Snapping between two charts reads as a glitch. */
@@ -356,6 +398,9 @@ export function main(): void {
       state.store.markSeen(questions.map((q) => q.id));
       state.session = createSession(questions);
       show("deck");
+      // An empty strip with the cursor already on it, so the tape reads as
+      // something waiting to be filled rather than something that appears later.
+      renderTape();
       renderCard();
     } catch (error) {
       fail(
