@@ -1,1 +1,5 @@
 .worktrees/
+
+# Snapshots, screenshots and console logs written by the Playwright MCP server
+# when an agent drives the site in a browser. Debugging output, not source.
+.playwright-mcp/
