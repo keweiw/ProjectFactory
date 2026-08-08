@@ -14,14 +14,18 @@
 
     <main>
       <section id="view-start" class="view">
-        <p>
-          You will see ten anonymised charts — real market data, with the ticker
-          and the dates stripped out. Each one tells you the timeframe, the asset
-          class, and how far ahead to look. Nothing else.
-        </p>
-        <p class="muted">
-          Drag the card up or down, or use the up and down arrow keys. You find out
-          straight away whether you were right.
+        <div id="demo-tape" class="tape tape-demo" hidden>
+          <div id="demo-glyphs" class="tape-glyphs"></div>
+          <div class="tape-streak">demo</div>
+        </div>
+        <div id="demo-card" class="card card-demo" hidden aria-hidden="true">
+          <canvas id="demo-canvas"></canvas>
+          <div id="demo-hand" class="demo-hand">▲</div>
+        </div>
+
+        <p class="lede">
+          Ten charts. No ticker, no dates, no company. Swipe up if you think it
+          went up.
         </p>
         <p id="start-summary" class="muted"></p>
         <button id="start-button" class="primary">Start</button>

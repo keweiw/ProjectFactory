@@ -253,6 +253,52 @@ button:disabled {
   }
 }
 
+/* --- the landing page demo ---
+ *
+ * A real chart playing the whole loop by itself. It replaced three paragraphs
+ * explaining the game, on the grounds that showing it is shorter. */
+
+.tape-demo {
+  opacity: 0.75;
+}
+
+.tape-demo .tape-streak {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.card-demo {
+  cursor: default;
+  /* Not interactive: the real card is the one that answers to a swipe. */
+  pointer-events: none;
+  margin-bottom: 1.25rem;
+}
+
+/* Two class names, so this beats `.card canvas` regardless of source order.
+ * At equal specificity the deck's taller rule wins and the demo card takes over
+ * the whole landing page. */
+.card.card-demo canvas {
+  height: clamp(190px, 30vh, 300px);
+}
+
+.demo-hand {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--amber);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lede {
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+
 /* --- deck --- */
 
 .deck-head {

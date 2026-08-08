@@ -13,6 +13,7 @@ import { buildRound, DEFAULT_DECK_SIZE } from "./deck.js";
 import { renderChart, DEFAULT_THEME } from "./chart.js";
 import { renderReport } from "./report-view.js";
 import { currentStreak, tapeGlyphs } from "./tape.js";
+import { demoFrame, DEMO_CYCLE_MS } from "./demo.js";
 import { answer, createSession, currentQuestion, isFinished, progress } from "./session.js";
 import { createHistoryStore, type HistoryStore } from "./storage.js";
 import {
@@ -136,6 +137,7 @@ const REQUIRED_IDS = [
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
   "start-summary", "error-retry", "call-chip",
   "tape-strip", "tape-glyphs", "tape-streak", "speed",
+  "demo-card", "demo-canvas", "demo-hand", "demo-tape", "demo-glyphs",
 ];
 
 function resolveElements(): Elements {
@@ -157,6 +159,23 @@ interface AppState {
   shownAt: number;
   busy: boolean;
   reportMode: ReportMode;
+  /** The four questions the landing page plays. Empty if demo.json did not load. */
+  demoQuestions: Question[];
+}
+
+/**
+ * The landing page's four questions. An enhancement, never a gate: if this fails
+ * the page renders without the demo card and Start still works.
+ */
+async function loadDemoQuestions(): Promise<Question[]> {
+  try {
+    const response = await fetch(`${DATA_URL}/demo.json`);
+    if (!response.ok) return [];
+    const parsed = (await response.json()) as { questions?: Question[] };
+    return parsed.questions ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export function main(): void {
@@ -169,6 +188,7 @@ export function main(): void {
     shownAt: 0,
     busy: false,
     reportMode: "allTime",
+    demoQuestions: [],
   };
 
   const canvas = elements["chart-canvas"] as HTMLCanvasElement;
@@ -390,7 +410,14 @@ export function main(): void {
     button.disabled = true;
     button.textContent = "Loading charts…";
     try {
-      const questions = await buildRound(DATA_URL, { seen: state.store.loadSeen() });
+      // The demo questions have had their answers played out on the landing page,
+      // so dealing one would be asking something already given away. The seen set
+      // buildRound already accepts is exactly the right mechanism.
+      const seen = new Set([
+        ...state.store.loadSeen(),
+        ...state.demoQuestions.map((q) => q.id),
+      ]);
+      const questions = await buildRound(DATA_URL, { seen });
       if (questions.length === 0) {
         fail("The question bank is empty. Rebuild it with scripts/build_deck.py.");
         return;
@@ -417,6 +444,7 @@ export function main(): void {
   elements["restart-button"]!.addEventListener("click", () => {
     show("start");
     renderStartSummary();
+    if (!reducedMotion) startDemo();
   });
 
   elements["report-mode"]!.addEventListener("click", (event) => {
@@ -445,6 +473,117 @@ export function main(): void {
       `${((correct / history.length) * 100).toFixed(0)}% correct`;
   }
 
+  // --- the landing page demo ---
+
+  const demoCanvas = elements["demo-canvas"] as HTMLCanvasElement;
+  const demoCard = elements["demo-card"]!;
+  const demoHand = elements["demo-hand"]!;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let demoIndex = 0;
+  let demoStartedAt = 0;
+  let demoRunning = false;
+
+  function paintDemo(question: Question, revealCount: number): void {
+    const rect = demoCanvas.getBoundingClientRect();
+    const width = rect.width || demoCanvas.clientWidth;
+    const height = rect.height || demoCanvas.clientHeight;
+    if (width === 0 || height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    demoCanvas.width = Math.round(width * dpr);
+    demoCanvas.height = Math.round(height * dpr);
+    const ctx = demoCanvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, demoCanvas.width, demoCanvas.height);
+    renderChart(ctx, question.setup, question.future, {
+      width, height, dpr, revealCount, theme: DEFAULT_THEME,
+    });
+  }
+
+  /**
+   * The demo's own calls, shown so the strip means something before the player has
+   * made any. Cleared when a round starts — it is an illustration, not their tape,
+   * and nothing here is ever written to history or counted in a statistic.
+   */
+  function renderDemoTape(upTo: number): void {
+    const cells = [];
+    // Wraps at a round's length. Left to grow, a landing page open for a few
+    // minutes would accumulate a strip hundreds of glyphs long.
+    const shown = upTo % (DEFAULT_DECK_SIZE + 1);
+    for (let i = 0; i < shown; i++) {
+      const question = state.demoQuestions[i % state.demoQuestions.length]!;
+      // The demo always calls up, so it hits exactly when the answer was up.
+      const hit = question.answer === "up";
+      cells.push(
+        `<span class="glyph glyph-up ${hit ? "hit" : "miss"}">${
+          GLYPH[hit ? "up-hit" : "up-miss"]
+        }</span>`,
+      );
+    }
+    cells.push(`<span class="glyph cursor" aria-hidden="true">▮</span>`);
+    elements["demo-glyphs"]!.innerHTML = cells.join("");
+  }
+
+  function demoStep(): void {
+    if (!demoRunning) return;
+    if (state.view !== "start" || document.hidden) {
+      demoRunning = false;
+      return;
+    }
+    const question = state.demoQuestions[demoIndex % state.demoQuestions.length]!;
+    const elapsed = performance.now() - demoStartedAt;
+
+    if (elapsed >= DEMO_CYCLE_MS) {
+      demoIndex++;
+      demoStartedAt = performance.now();
+      renderDemoTape(demoIndex);
+      requestAnimationFrame(demoStep);
+      return;
+    }
+
+    const frame = demoFrame(elapsed, question.future.length);
+    paintDemo(question, frame.revealCount);
+    const lift = frame.cardOffset * demoCard.getBoundingClientRect().height;
+    demoCard.style.transform = lift === 0 ? "" : `translateY(${lift.toFixed(1)}px)`;
+    demoHand.style.opacity = String(frame.handOpacity);
+    requestAnimationFrame(demoStep);
+  }
+
+  function startDemo(): void {
+    if (state.demoQuestions.length === 0 || demoRunning) return;
+    if (state.view !== "start") return;
+    demoRunning = true;
+    demoStartedAt = performance.now();
+    requestAnimationFrame(demoStep);
+  }
+
+  function showDemo(): void {
+    if (state.demoQuestions.length === 0) return;
+    elements["demo-card"]!.hidden = false;
+    elements["demo-tape"]!.hidden = false;
+    renderDemoTape(0);
+
+    if (reducedMotion) {
+      // One fully revealed chart, never animated. The point still lands: this is
+      // what a question looks like and this is what the answer looks like.
+      const question = state.demoQuestions[0]!;
+      demoHand.style.opacity = "0";
+      paintDemo(question, question.future.length);
+      return;
+    }
+    startDemo();
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) demoRunning = false;
+    else if (!reducedMotion) startDemo();
+  });
+
   renderStartSummary();
   show("start");
+
+  void loadDemoQuestions().then((questions) => {
+    state.demoQuestions = questions;
+    if (state.view === "start") showDemo();
+  });
 }
