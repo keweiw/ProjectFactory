@@ -57,7 +57,10 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/dist/src
+          # Create the parent only. `cp -r SRC DEST` copies SRC *into* DEST when
+          # DEST already exists, so pre-creating _site/dist/src would land the
+          # build at _site/dist/src/src and 404 the module the page imports.
+          mkdir -p _site/dist
           cp project/tickread/code/index.html project/tickread/code/style.css _site/
           cp -r project/tickread/code/data _site/data
           cp -r project/tickread/code/src _site/src
