@@ -191,7 +191,7 @@ const REQUIRED_IDS = [
   "start-button", "card", "chart-canvas", "card-meta", "progress",
   "verdict", "report-body", "report-mode", "restart-button", "error-message",
   "start-summary", "error-retry", "call-announce", "spark-canvas",
-  "streak", "speed",
+  "streak", "speed", "next-button",
   "demo-card", "demo-canvas", "demo-hand",
 ];
 
@@ -298,6 +298,9 @@ export function main(): void {
     elements["verdict"]!.textContent = "";
     elements["verdict"]!.className = "verdict";
     elements["speed"]!.textContent = "";
+    const nextButton = elements["next-button"] as HTMLButtonElement;
+    nextButton.hidden = true;
+    nextButton.disabled = false;
     elements["card-meta"]!.textContent = describeQuestion(question);
     const { answered, total } = progress(state.session);
     elements["progress"]!.textContent = `${answered + 1} / ${total}`;
@@ -362,6 +365,26 @@ export function main(): void {
     }, SWAP_MS);
   }
 
+  /**
+   * The revealed chart is the lesson. It stays on screen until the player is ready
+   * to continue, rather than disappearing on a timer that competes with reading it.
+   */
+  function offerNextStep(): void {
+    const nextButton = elements["next-button"] as HTMLButtonElement;
+    nextButton.textContent = isFinished(state.session) ? "View results" : "Next chart";
+    nextButton.hidden = false;
+    nextButton.focus();
+  }
+
+  function continueAfterReveal(): void {
+    if (!state.busy || state.view !== "deck") return;
+    const nextButton = elements["next-button"] as HTMLButtonElement;
+    if (nextButton.hidden || nextButton.disabled) return;
+    nextButton.disabled = true;
+    if (isFinished(state.session)) finishRound();
+    else advanceCard();
+  }
+
   function reveal(given: Direction): void {
     const question = currentQuestion(state.session)!;
     const responseMs = performance.now() - state.shownAt;
@@ -383,8 +406,7 @@ export function main(): void {
         requestAnimationFrame(step);
         return;
       }
-      if (isFinished(state.session)) finishRound();
-      else advanceCard();
+      offerNextStep();
     };
     requestAnimationFrame(step);
   }
@@ -608,6 +630,11 @@ export function main(): void {
 
   document.addEventListener("keydown", (event) => {
     if (state.view !== "deck") return;
+    if ((event.key === "Enter" || event.key === " ") && state.busy) {
+      event.preventDefault();
+      continueAfterReveal();
+      return;
+    }
     if (event.key === "ArrowUp") commit("up");
     if (event.key === "ArrowDown") commit("down");
   });
@@ -653,6 +680,7 @@ export function main(): void {
 
   elements["start-button"]!.addEventListener("click", () => void startRound());
   elements["error-retry"]!.addEventListener("click", () => void startRound());
+  elements["next-button"]!.addEventListener("click", continueAfterReveal);
   elements["restart-button"]!.addEventListener("click", () => {
     show("start");
     renderStartSummary();

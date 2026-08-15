@@ -430,6 +430,11 @@ button:disabled {
   font-weight: 500;
 }
 
+.next-button {
+  display: block;
+  margin: 0.85rem auto 0;
+}
+
 /* --- report --- */
 
 .modes {
