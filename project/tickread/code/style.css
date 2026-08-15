@@ -422,6 +422,14 @@ button:disabled {
   color: var(--bad);
 }
 
+.verdict-details {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--fg);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 /* --- report --- */
 
 .modes {

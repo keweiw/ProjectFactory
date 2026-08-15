@@ -145,6 +145,23 @@ export function describeOutcome(question: Question, correct: boolean): string {
   return `${verdict} — it went ${word} ${move.toFixed(1)}%`;
 }
 
+/** Identifies the chart only after its outcome has been revealed. */
+function describeRevealDetails(question: Question): string {
+  const formatDate = (timestamp: number | undefined): string => {
+    if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+      return "date unavailable";
+    }
+    return new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(timestamp * 1000));
+  };
+  const symbol = question.symbol ?? "Instrument unavailable";
+  return `${symbol} | ${TIMEFRAME_WORDS[question.timeframe]} chart | ` +
+    `${formatDate(question.startTime)} - ${formatDate(question.endTime)}`;
+}
 
 /**
  * The line a returning player reads first, on the landing page.
@@ -323,7 +340,13 @@ export function main(): void {
    */
   function showVerdict(question: Question, record: AnswerRecord): void {
     const verdict = elements["verdict"]!;
-    verdict.textContent = describeOutcome(question, record.correct);
+    verdict.replaceChildren(
+      document.createTextNode(describeOutcome(question, record.correct)),
+      Object.assign(document.createElement("span"), {
+        className: "verdict-details",
+        textContent: describeRevealDetails(question),
+      }),
+    );
     verdict.className = `verdict ${record.correct ? "good" : "bad"}`;
     // Already recorded on every answer since the first release, and never shown.
     elements["speed"]!.textContent = `${(record.responseMs / 1000).toFixed(1)}s`;

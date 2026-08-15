@@ -27,6 +27,10 @@ export interface Question {
   assetClass: AssetClass;
   timeframe: Timeframe;
   horizon: Horizon;
+  /** Revealed only after the player answers. Epoch timestamps are UTC seconds. */
+  symbol?: string;
+  startTime?: number;
+  endTime?: number;
   setup: Bar[];
   future: Bar[];
   answer: Direction;

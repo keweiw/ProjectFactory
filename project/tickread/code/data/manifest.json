@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-01T23:04:02+00:00",
+  "generatedAt": "2026-08-15T16:45:33+00:00",
   "setupLength": 60,
   "shards": [
     {
       "timeframe": "1m",
       "file": "questions-1m.json",
-      "count": 342,
+      "count": 340,
       "assetClasses": [
         "equity",
         "etf_index",
