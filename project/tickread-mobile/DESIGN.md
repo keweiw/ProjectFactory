@@ -1,216 +1,342 @@
-# tickread Mobile — 产品与系统设计
+# tickread Mobile — Product & System Design
 
-**状态：** DESIGN_DRAFT  
-**日期：** 2026-08-15  
-**关联产品：** `project/tickread`
+**Status:** DESIGN_DRAFT  
+**Date:** 2026-08-15  
+**Revised:** 2026-08-16  
+**Related product:** `project/tickread`
 
-## 1. 愿景
+---
 
-tickread Mobile 是一个以手机单手操作为核心的市场直觉训练应用。用户看一段
-被隐藏名称与日期的 K 线，在有限时间内判断价格接下来会上涨或下跌；答案揭晓
-后，应用显示真实走势、标的代码、K 线周期及日期范围，再将表现汇总成可理解的
-个人能力报告。
+## 1. Vision
 
-它不是交易工具，也不提供买卖建议或实时行情。它的价值是把“看图猜方向”变成
-可重复、可回顾的训练。
+tickread Mobile is a single-hand market-intuition training app for phones. The user sees a candlestick chart with the ticker, dates, and future bars hidden, then swipes up (bullish) or down (bearish) within a time limit. After locking in the answer, the future bars animate in and the real ticker, timeframe, and date range are revealed. Repeated sessions accumulate into a personal ability report that shows where the user's edge is strongest and where calibration is weakest.
 
-## 2. 产品原则
+This is a training tool, not a trading tool. It provides no real-time prices, buy/sell signals, or investment advice.
 
-1. **先判断，后揭晓。** 作答前绝不显示代码、日期或绝对价格；揭晓后必须明确
-   展示正确方向和标的资料。
-2. **一只手完成一题。** 上滑代表看涨、下滑代表看跌；底部的大型「涨 / 跌」按钮
-   是等价且无障碍的替代输入。
-3. **图表是主角。** 不在图上叠加复杂指标、新闻或交易提示。每屏只回答一个问题。
-4. **离线优先。** 已下载题库和历史成绩在无网络时仍可使用。
-5. **同一题、同一结果。** PWA、未来的原生壳和 Unity 客户端对同一题目的判定、
-   方向、时间和统计结果完全一致。
+---
 
-## 3. 目标平台与交付顺序
+## 2. Product Principles
 
-| 阶段 | 平台 | 目的 |
-|---|---|---|
-| 1 | Mobile Web + PWA | 以现有 TypeScript 静态站快速验证手机体验；支持安装到主屏幕。 |
-| 2 | Capacitor 原生壳（iOS / Android） | 复用 PWA，取得应用商店分发、触觉反馈与本地文件能力。 |
-| 3 | Unity 客户端 | 作为更有游戏感的训练客户端或嵌入其他 Unity 体验，读取相同的共享内容。 |
+1. **Judge first, reveal after.** Ticker, dates, and future bars are never shown before the user answers. After answering they must always be shown.
+2. **One hand, one question.** Swipe up = bullish, swipe down = bearish. Large accessible buttons are a fully equivalent alternative — not a fallback.
+3. **Chart is the hero.** No overlaid indicators, news, or trading tips. One question per screen.
+4. **Offline first.** A downloaded question bank and local history work without a network connection.
+5. **One question, one answer.** PWA, Capacitor shell, and any future Unity client must produce the same `correct` result and the same statistics for the same input. The shared contract is the source of truth, not each client's implementation.
+6. **Stats earn their place.** Subcategory breakdowns (by asset class, timeframe, horizon) are only shown once enough samples exist. A "not enough data yet" message is more honest than a percentage from 2 answers.
 
-阶段 1 不依赖帐号或后端。阶段 2 和 3 也不得各自生成题目或重新计算答案；它们只
-消费共享题库和共享会话格式。
+---
 
-## 4. 信息架构与 UI
+## 3. Milestones
 
-### 4.1 首页 / 继续训练
+The project is delivered in five milestones. Each milestone produces a shippable, testable artifact before the next one starts. Unity is intentionally deferred until the PWA experience is validated.
 
-顶部为 `tickread` 标识、当前训练进度和历史命中率。主体是一张自动播放的示例图，
-让首次用户无需阅读长说明即可理解“观察 → 判断 → 揭晓”。主按钮为「开始 10 题」。
+```
+M0 ── Shared Foundation
+M1 ── Mobile Web MVP
+M2 ── History & Cumulative Report
+M3 ── PWA Polish & Offline
+M4 ── Capacitor Native Shell   (starts only after M3 is validated)
+M5 ── Unity Client             (scope to be decided; not on the critical path)
+```
 
-底部提供三个轻量入口：训练记录、设置、数据说明。首页不显示任何实时价格或市场
-推荐。
+---
 
-### 4.2 作答屏
+### M0 · Shared Foundation
+
+**Goal:** Lock the data contract and validate the build pipeline before any UI work starts. Both the web client and any future Unity client depend on this being stable.
+
+**Deliverables**
+
+| Artifact | Description |
+|---|---|
+| `shared/CONTRACT.md` | Finalised schemas for `QuestionDefinition`, `SessionRecord`, and `manifest.v2.json` |
+| `shared/fixtures/` | At least 5 fixed questions with pre-computed expected statistics (hit rate, groupings) |
+| Pipeline validation | `project/tickread/scripts/build_deck.py` outputs a manifest + question bank that passes JSON Schema validation against CONTRACT.md schemas |
+| Compatibility test | A lightweight script that runs the fixtures and asserts `correct`, hit rate, and grouped stats match expected values |
+
+**Done when:** The pipeline produces a validated content package and the fixture tests pass. No UI is required.
+
+---
+
+### M1 · Mobile Web MVP
+
+**Goal:** A working phone UI where a user can complete a full 10-question round, see the answer revealed after each question, and get a basic end-of-round summary. This is a **new mobile-first UI** built on the shared contract and the existing TypeScript + question-bank pipeline. It is not a port of the existing desktop tickread app.
+
+**Deliverables**
+
+| Screen | Minimum content |
+|---|---|
+| Home | App title, start button, total lifetime hit rate (or "no history yet") |
+| Question screen | K-line chart (setup bars only), swipe gesture + up/down buttons, question counter, streak badge |
+| Reveal screen | Future bars animate in, result card (correct/wrong, actual move %, ticker, timeframe, date range, response time), next-question button |
+| Round report | Total hit rate for this round, longest streak this round, list of 10 questions with correct/wrong indicator |
+
+**Input contract**
+- Up swipe / Up button → `given: "up"`
+- Down swipe / Down button → `given: "down"`
+- Swipe must have a threshold; a partial drag snaps back if not committed
+
+**Not in M1**
+- Cumulative stats across rounds
+- Offline / Service Worker
+- PWA install prompt
+- Haptic feedback
+
+**Done when:** A user on a real phone can complete a 10-question round end-to-end, results are stored in `localStorage`, and the fixture compatibility test still passes.
+
+---
+
+### M2 · History & Cumulative Report
+
+**Goal:** Make repeated training sessions meaningful by accumulating results and showing the user where their skill is developing over time.
+
+**Deliverables**
+
+| Feature | Detail |
+|---|---|
+| Persistent history | All `SessionRecord` entries stored in `localStorage`, keyed by `questionId` |
+| Cumulative home screen | Lifetime hit rate, total questions answered, current streak across sessions |
+| Full report | Hit rate over time (sparkline), subcategory breakdown by asset class / timeframe / horizon — **only shown when that subcategory has ≥ 20 answers** |
+| Decision style | Response-time distribution, bullish/bearish bias — shown when ≥ 30 total answers |
+| Sample-size guard | Any stat with fewer than the threshold shows "not enough data yet" — no fabricated 0% or 100% |
+| Export / Import | User can export session history as JSON and re-import it on a new device |
+| Clear history | Settings option to wipe local data |
+
+**Done when:** After three simulated rounds (using fixtures), the cumulative report shows correct grouped stats and correctly withholds subcategory breakdowns where sample is below threshold.
+
+---
+
+### M3 · PWA Polish & Offline
+
+**Goal:** Make the app installable, fully offline-capable, and production-quality on mobile.
+
+**Deliverables**
+
+| Feature | Detail |
+|---|---|
+| Service Worker | Caches app shell and current question bank; background-updates on next launch without interrupting an in-progress round |
+| Web App Manifest | Name, icons, `display: standalone`, theme colour — enables "Add to Home Screen" on iOS and Android |
+| Haptic feedback | `navigator.vibrate()` on answer lock and reveal (correct vs wrong), with `prefers-reduced-motion` respected |
+| Accessibility audit | Colour + arrow + text (never colour alone), minimum 52 px touch targets, dynamic type, VoiceOver / TalkBack tested |
+| Dark mode | `prefers-color-scheme` + manual toggle |
+| Reduced-motion | All reveal animations respect `prefers-reduced-motion: reduce` |
+| Question bank versioning | Manifest version check on launch; if a newer bank is available, download in background and activate on next round start |
+
+**Done when:** App passes Lighthouse PWA audit (≥ 90), installs to home screen on both iOS and Android, and completes a full round with no network connection after first load.
+
+---
+
+### M4 · Capacitor Native Shell *(starts after M3 is validated in production)*
+
+**Goal:** Wrap the PWA in Capacitor to get App Store distribution, native haptics, and local file access.
+
+**Prerequisite:** At least 4 weeks of real-user PWA usage showing the core experience works and no major UX pivots are needed.
+
+**Deliverables**
+
+| Feature | Detail |
+|---|---|
+| Capacitor project | iOS and Android targets wrapping the M3 PWA |
+| Native haptics | Replace `vibrate()` with `@capacitor/haptics` for richer feedback patterns |
+| App Store submission | TestFlight (iOS) and Play Console internal track (Android) builds |
+| File-based history | Optionally migrate `localStorage` to `@capacitor/filesystem` for more robust persistence |
+
+**Not in M4**
+- Cloud sync
+- Accounts
+- Push notifications
+
+**Done when:** Both platforms pass store review and at least one internal tester completes a session on device.
+
+---
+
+### M5 · Unity Client *(scope to be decided)*
+
+Unity is not on the critical path and its scope is not yet defined. Three open questions must be answered before this milestone is planned:
+
+1. Is Unity a standalone mobile app, a desktop training client, or embedded in an existing Unity game?
+2. Does it ship with a bundled question bank (larger install, instant start) or download on first launch?
+3. Is the PWA maintained in parallel long-term, or does Unity replace it?
+
+Until those are decided, M5 is a placeholder. The shared contract (M0) is designed to support it without changes.
+
+---
+
+## 4. Information Architecture & UI
+
+### 4.1 Home Screen
+
+App title, lifetime hit rate and total questions answered (or "start your first round"), and a single primary button: **Start 10 questions**. Three secondary entries: History, Settings, About. No real-time prices, market news, or recommendations.
+
+### 4.2 Question Screen
 
 ```
 ┌────────────────────────────────────┐
 │  DAILY · US EQUITY · NEXT 5 BARS   │
 │  4 / 10                 streak 2   │
 │                                    │
-│        Where does price go?         │
+│       Where does price go?          │
 │  ┌──────────────────────────────┐  │
 │  │                              │  │
-│  │          K 线 + 成交量         │  │
-│  │       （未来走势隐藏）          │  │
+│  │      K-line + volume         │  │
+│  │    (future bars hidden)      │  │
 │  │                              │  │
 │  └──────────────────────────────┘  │
 │                                    │
-│  [ ↓ 看跌 / Price falls ] [ ↑ 看涨 ] │
-│        或直接下滑 / 上滑             │
+│   [ ↓ Bearish / Falls ]  [ ↑ Bullish / Rises ]  │
+│        or swipe down / up           │
 └────────────────────────────────────┘
 ```
 
-- 图表区域占可用高度的 55–65%，始终保留安全边距和底部系统手势区。
-- 上滑 / 下滑时，卡片沿同方向轻微移动、显示相应绿/红提示；未超过阈值则弹回。
-- 按钮最小高度 52 px，两个选择颜色之外还使用箭头与文字，不能仅依赖颜色。
-- `↑` / `↓` 键保留给外接键盘和桌面调试，不是手机端的主要提示。
+- Chart occupies 55–65% of available height, with safe-area insets respected.
+- A partial swipe beyond threshold commits and locks; below threshold the card snaps back.
+- Arrow keys work for desktop debugging; they are not the primary affordance on phone.
 
-### 4.3 答案揭晓屏
+### 4.3 Reveal Screen
 
-卡片留在原位置，未来 K 线逐根显现，避免把图表滑出屏幕。最后一根 K 线落下后，
-结果卡片出现：
+The card stays in place. Future bars animate in one by one. After the final bar, the result card appears:
 
 ```
-正确 — 实际上涨 2.4%
-AAPL · 日线 · 2025-03-05 – 2025-03-12
-你的判断：看涨 · 用时 1.3 秒
+Correct — price rose 2.4%
+AAPL · Daily · 05 Mar 2025 – 12 Mar 2025
+Your call: Bullish · 1.3 s
 ```
 
-结果停留至少 2.2 秒；用户可点击「下一题」立即前进。这样既能看到真实答案，也不会
-让熟练用户被固定等待时间阻塞。
+Result stays visible for at least 2.2 seconds. The user can tap **Next** immediately after that. This prevents熟练 users from being blocked by a fixed wait while giving casual users time to absorb the real answer.
 
-### 4.4 训练报告
+### 4.4 Round Report
 
-一轮默认 10 题。报告依次显示：总命中率、连续答对数、按资产类别 / 周期 / 预测跨度
-划分的能力地图，以及决策风格（偏多、趋势跟随/均值回归、成交量敏感度、反应速度）。
+After 10 questions: hit rate for this round, longest streak, and a card for each question showing correct/wrong and the actual move. Cumulative stats and subcategory analysis are on the separate History screen (M2), not here.
 
-报告使用卡片和短句解释统计不确定性；样本不足时显示「样本不足」，绝不把缺失数据
-伪装为 0%。
+### 4.5 Visual Language & Accessibility
 
-### 4.5 视觉语言与无障碍
+- Dark graphite background, warm-white content cards.
+- Bullish = green with ↑ arrow and text label. Bearish = red with ↓ arrow and text label. Colour is never the only signal.
+- Price numbers in monospace; body copy in system font.
+- Supports dark mode, `prefers-reduced-motion`, dynamic type, and screen-reader status announcements.
 
-- 深石墨色背景、暖白内容卡片；上涨为绿色、下跌为红色，但两者均有方向箭头与文字。
-- 行情数字使用等宽字体；说明文字使用系统字体。
-- 支持深色模式、`prefers-reduced-motion`、动态字体和屏幕阅读器状态播报。
-- 动画只服务反馈：作答有轻微触觉/视觉确认，揭晓逐根播放；不使用会妨碍阅读的抖动。
+---
 
-## 5. 系统架构
+## 5. System Architecture
 
-```mermaid
-flowchart LR
-  S[离线数据抓取\nYahoo / 可选 Polygon] --> B[题库构建器]
-  B --> C[共享内容包\nJSON + manifest]
-  C --> W[PWA / Capacitor 客户端]
-  C --> U[Unity 导入器 / Addressables]
-  W --> H[本地成绩记录]
-  U --> H2[Unity 本地成绩记录]
-  H -. 可选导出 .-> X[共享会话 JSON]
-  H2 -. 可选导出 .-> X
+```
+[Python build pipeline]
+    ↓ produces
+[shared content package]
+  question-bank.v2.json
+  manifest.v2.json
+  fixtures/
+    ↓ consumed by
+[PWA / Capacitor client]          [Unity client — M5, TBD]
+    ↓ writes
+[local SessionRecord store]
+    ↓ optional export
+[session-record.v1.json]
 ```
 
-### 5.1 内容层
+### 5.1 Content Layer
 
-现有 Python 数据管线继续在构建期拉取并校验 OHLCV 数据，生成静态题库。每题包含：
+The Python pipeline in `project/tickread/scripts/` fetches and validates OHLCV data and produces a static question bank. tickread-mobile **reads** this output; it does not rebuild or modify it.
 
-- 隐藏期使用的 K 线与未来 K 线；
-- 标的代码、资产类别、时间周期、起止 UTC 时间；
-- 已计算的正确方向。
+Each question in the bank contains:
+- `setup` bars (shown before answering)
+- `future` bars (hidden until reveal — see §5.2)
+- Ticker, asset class, timeframe, UTC start/end, and pre-computed `answer`
 
-标的资料只在客户端完成答题后渲染。共享内容包不包含用户资料、API Key 或实时网络
-调用。
+Ticker and dates are rendered only after the user has submitted an answer.
 
-### 5.2 客户端层
+### 5.2 Future Bar Security
 
-客户端分为四个职责：题库读取、回合编排、输入/动画呈现、成绩与报告。题目抽取、
-方向判定和统计公式必须来自共享的确定性规则；呈现层可以分别采用 DOM/Canvas 或
-Unity UI/图表渲染。
+`setup` and `future` are both present in the same `QuestionDefinition` JSON object. A client that logs or displays the raw object before reveal would leak the answer.
 
-PWA 使用 Service Worker 缓存应用壳和当前题库版本。更新时在下一次启动下载新版本，
-不会打断正在进行的回合。
+**Required client behaviour (mandatory, part of compatibility contract):**
+- Before the user submits: render only `setup` bars. Do not read, log, or expose `future`, `answer`, `symbol`, `startTime`, or `endTime`.
+- After submission: lock the input, then begin animating `future` bars, then display `symbol`, `startTime`, and `endTime` formatted in the device locale.
 
-### 5.3 本地数据与隐私
+This is enforced through fixture tests: a fixture test simulates an answer and asserts that the reveal fields are only accessed after the `given` value is recorded.
 
-默认只有设备本地历史记录。没有登录、广告追踪或服务端数据库。用户可在设置中：
+### 5.3 Local Data & Privacy
 
-- 导出成绩 JSON；
-- 导入先前导出的成绩；
-- 清空本地训练记录和缓存题库。
+History is stored on-device only. No login, ad tracking, or server database in M1–M3. Users can export, import, and clear their data from Settings.
 
-未来若加入同步，应采用用户主动登录、端到端可理解的隐私说明，以及与现有共享会话
-格式兼容的服务端存储；它不属于第一版。
+---
 
-## 6. Web / Unity 共享契约
+## 6. Round State Machine
 
-共享的不是 UI 代码，而是版本化数据契约和测试样例。它们放在 `shared/`，由 PWA 和
-Unity 同时消费。
+```
+[*] → Home
+Home → LoadingBank          (Start round)
+LoadingBank → QuestionReady (Bank available)
+LoadingBank → Error         (Bank unavailable)
+QuestionReady → Calling     (Swipe or button tap)
+Calling → Revealing         (Input locked; SessionRecord written)
+Revealing → Result          (Future bars finish; symbol/dates shown)
+Result → QuestionReady      (Next question; round not complete)
+Result → RoundReport        (Last question in round)
+RoundReport → Home          (Play again / Back)
+Error → LoadingBank         (Retry)
+```
 
-| 文件 | 用途 | Unity 侧对应物 |
+**Session persistence:** When the app is backgrounded mid-round, the current question index and answers so far are written to `localStorage`. On resume, the round continues from the last unanswered question.
+
+---
+
+## 7. Shared Contract
+
+Full schemas are in `shared/CONTRACT.md`. Key rules:
+
+- UTC timestamps as Unix seconds. No device timezone in stored data.
+- Direction enum: `"up"` or `"down"` only — no booleans or localised strings as stored values.
+- Prices as JSON numbers; display formatting is each client's responsibility.
+- Question IDs are stable hashes with no readable ticker embedded — ticker and dates are separate reveal fields.
+- The build pipeline validates output against JSON Schema before publishing.
+- PWA and Unity (M5) must produce identical `correct`, hit rate, and grouped stats for the same fixture set.
+- **Clients must not access `future`, `answer`, `symbol`, `startTime`, or `endTime` before a `given` value is recorded for that question.**
+
+---
+
+## 8. Data Pipeline Ownership
+
+| Concern | Owner | Location |
 |---|---|---|
-| `question-bank.v2.json` | 题库与题目元数据 | JSON 导入为 `QuestionDefinition` ScriptableObject 或 Addressables 资源 |
-| `manifest.v2.json` | 题库版本、分片、校验摘要 | 内容版本检查与下载清单 |
-| `session-record.v1.json` | 一轮答案与反应时间 | `SessionRecord` 可序列化 DTO |
-| `fixtures/` | 固定题目与预期统计结果 | Unity PlayMode / EditMode 测试输入 |
+| Fetch & validate OHLCV data | tickread pipeline | `project/tickread/scripts/build_deck.py` |
+| Produce `question-bank.v2.json` + `manifest.v2.json` | tickread pipeline | output path TBD (see Open Items) |
+| JSON Schema validation of output | tickread pipeline | runs as part of build |
+| Consume content package | tickread-mobile PWA | reads from agreed output path |
+| Fixture-based compatibility test | tickread-mobile | `shared/fixtures/` + test script |
 
-统一约束：
+The pipeline output path and how tickread-mobile references it (local symlink, copy, or subpath) must be agreed before M1 starts.
 
-- UTC 时间使用 Unix 秒；不传设备本地时区。
-- 方向枚举只有 `up`、`down`；不得使用平台特定的布尔值或本地化文案作为存储值。
-- 价格使用 JSON number；显示精度由各客户端格式化，判定始终使用原始数值。
-- 题目 ID 为稳定、不含可读代码的哈希；代码与日期是独立的揭晓字段。
-- 构建器对共享格式做 JSON Schema 校验；PWA 与 Unity 对相同 fixture 产生相同的
-  `correct`、命中率和分组统计。
+---
 
-Unity 不直接调用 Yahoo / Polygon，也不从画面反推正确答案。它只下载或随包附带经过
-构建器验证的内容包，以确保与 Web 版完全一致且可离线运行。
+## 9. Roles
 
-## 7. 回合状态机
-
-```mermaid
-stateDiagram-v2
-  [*] --> Home
-  Home --> LoadingBank: 开始训练
-  LoadingBank --> QuestionReady: 题库可用
-  LoadingBank --> Error: 题库不可用
-  QuestionReady --> Calling: 上/下滑或点击涨/跌
-  Calling --> Revealing: 锁定输入
-  Revealing --> Result: 未来 K 线结束\n显示代码、周期、日期
-  Result --> QuestionReady: 下一题
-  Result --> Report: 本轮最后一题
-  Report --> Home: 再来一轮 / 返回
-  Error --> LoadingBank: 重试
-```
-
-## 8. 角色与交付流程
-
-| 角色 | 责任 | 主要产物 |
+| Role | Responsibility | Primary output |
 |---|---|---|
-| 产品 / 设计 | 训练流程、信息层级、无障碍与文案 | 本设计稿、交互验收标准 |
-| 数据管线 | 获取、校验和构建共享题库 | 版本化内容包与 fixtures |
-| PWA 客户端 | 手机 UI、离线缓存、Web 成绩记录 | 可安装 Web App |
-| Unity 客户端 | 导入共享包、Unity 输入与渲染、离线记录 | Unity 场景、导入器、测试 |
-| QA | 共享 fixture 一致性、手势、离线和无障碍 | Web / Unity 测试报告 |
+| Product / Design | Training flow, information hierarchy, copy, accessibility | This design doc, acceptance criteria per milestone |
+| Data pipeline | Fetch, validate, and build shared question bank | Versioned content package + fixtures |
+| PWA client | Mobile UI, offline cache, local history | Installable Web App (M1–M3) |
+| QA | Fixture consistency, gesture feel, offline, accessibility | Test reports at each milestone gate |
+| Native / Unity | Capacitor shell (M4), Unity client (M5 TBD) | Platform builds |
 
-工作流：内容变更先更新共享契约和 fixture；两端通过兼容性测试后才能使用新 manifest
-版本。UI 改动不应改变题目判定和历史成绩的含义。
+---
 
-## 9. 非目标
+## 10. Non-Goals
 
-- 不在第一版提供实时行情、下单、价格预警或投资建议。
-- 不要求 PWA 与 Unity 共用渲染代码、Canvas、动画或 UI 组件。
-- 不在第一版提供账号、排行榜、社交分享或云端同步。
+- No real-time prices, order entry, price alerts, or investment advice in any milestone.
+- PWA and Unity do not share rendering code, Canvas, animations, or UI components — only data.
+- No accounts, leaderboards, social sharing, or cloud sync in M1–M3.
+- No Unity work before M3 is validated.
 
-## 10. 开放项
+---
 
-1. Unity 的定位：独立移动 App、桌面训练版，还是嵌入既有 Unity 游戏？这会影响
-   Addressables、商店包体与触觉反馈方案。
-2. 是否需要完全离线随包题库，还是首次安装后下载题库？前者启动最快但安装包更大。
-3. PWA 是否仅作为分发验证，还是长期与 Unity 版本并行维护？
-4. 回合长度暂定为 10 题；是否按用户水平开放 5 / 10 / 20 题模式？
+## 11. Open Items
 
-在以上问题确认前，本设计仅定义共享内容与体验边界，不锁定具体框架或商店发布方案。
+| # | Question | Blocks |
+|---|---|---|
+| 1 | What is the agreed output path for the build pipeline's content package, and how does tickread-mobile reference it? | M0 |
+| 2 | Should the question bank be bundled with the app at build time, or downloaded on first launch? Bundled = faster start, larger install; downloaded = always fresh, needs network on first use. | M3 |
+| 3 | Round length: fixed 10, or user-selectable 5 / 10 / 20? Affects report design and statistical thresholds. | M1 |
+| 4 | What is the minimum sample threshold for showing subcategory breakdowns? Proposed: 20 per category, 30 for decision style. | M2 |
+| 5 | Unity scope: standalone mobile app, desktop training client, or embedded in an existing Unity game? | M5 |
+| 6 | Is the PWA maintained long-term alongside a native app, or does Capacitor/Unity eventually replace it? | M4 / M5 |
