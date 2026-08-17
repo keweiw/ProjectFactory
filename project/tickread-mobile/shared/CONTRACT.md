@@ -1,68 +1,177 @@
-# tickread Mobile / Unity 共享内容契约
+# tickread Mobile — Shared Content Contract
 
-**版本：** Draft v1  
-**权威设计：** [../DESIGN.md](../DESIGN.md)
+**Version:** 1  
+**Status:** Locked (M0)  
+**Design:** [../DESIGN.md](../DESIGN.md)
 
-## 目的
+---
 
-让 PWA、Capacitor 原生壳与 Unity 读取相同的题库和会话资料，同时各自使用适合其
-平台的 UI 与动画。共享 JSON 是内容层契约，不是 UI 或游戏引擎 API。
+## Purpose
+
+Define the data formats shared by all tickread clients (PWA, Capacitor shell, future Unity). Clients may use different UI frameworks and rendering engines. They must all read the same question bank and produce identical `correct` values and statistics for the same inputs.
+
+Shared here: **what** is stored and how it is structured.  
+Not shared: UI code, rendering, animations, or game-engine internals.
+
+---
+
+## Question Bank Format
+
+The pipeline (`project/tickread/code/scripts/build_deck.py`) produces one manifest and one shard file per timeframe. tickread-mobile reads these directly.
+
+```
+project/tickread/code/data/
+  manifest.json          ← bank index; validate against schemas/manifest.schema.json
+  questions-1m.json      ← minute-bar questions
+  questions-1h.json      ← hourly questions
+  questions-1d.json      ← daily questions
+  questions-1mo.json     ← monthly questions
+```
+
+The pipeline output is validated against `shared/schemas/manifest.schema.json` as part of the M0 gate. The mobile client reads the manifest to discover which shards exist, then loads shards on demand.
+
+---
 
 ## QuestionDefinition
 
+Schema: `schemas/question-definition.schema.json`
+
 ```json
 {
-  "id": "stable-question-hash",
+  "id": "fx6750fa3dc0",
   "assetClass": "equity",
   "timeframe": "1d",
   "horizon": 5,
   "symbol": "AAPL",
-  "startTime": 1741132800,
-  "endTime": 1741737600,
-  "setup": [{ "o": 100, "h": 102, "l": 99, "c": 101, "v": 1200000 }],
-  "future": [{ "o": 101, "h": 104, "l": 100, "c": 103, "v": 1300000 }],
+  "startTime": 1704067200,
+  "endTime": 1704499200,
+  "setup":  [{ "o": 150.15, "h": 150.62, "l": 149.87, "c": 150.31, "v": 982340 }],
+  "future": [{ "o": 150.31, "h": 152.10, "l": 150.05, "c": 151.88, "v": 1043210 }],
   "answer": "up"
 }
 ```
 
-`symbol`、`startTime`、`endTime` 必须在客户端提交答案前隐藏；它们不是判定输入。
-时间戳为 Unix UTC 秒。`setup`、`future` 中的 OHLCV 数值保留完整精度。
+**Field rules**
+
+| Field | Rule |
+|---|---|
+| `id` | Stable opaque hash. Does not contain the symbol or dates. Prefix `fx` marks fixture questions. |
+| `assetClass` | Enum: `equity`, `crypto`, `forex`, `commodity`, `index` |
+| `timeframe` | Enum: `1m`, `1h`, `1d`, `1mo` |
+| `horizon` | Integer ≥ 1. Number of future bars being predicted. |
+| `symbol` | **Reveal-only.** Must not be shown before the user answers. |
+| `startTime` | Unix UTC seconds. **Reveal-only.** |
+| `endTime` | Unix UTC seconds. **Reveal-only.** |
+| `setup` | Bars shown during the question. No timestamps. |
+| `future` | **Reveal-only.** Bars animated after answering. Must not be accessed before `given` is recorded. |
+| `answer` | **Reveal-only.** Pre-computed correct direction: `"up"` or `"down"`. |
+
+Bars carry no timestamps. A shipped bar is `{ o, h, l, c, v }` only.  
+OHLC constraint: `l ≤ o ≤ h` and `l ≤ c ≤ h`. Prices are positive numbers. Volume is a positive integer.
+
+---
+
+## Reveal-field access rule
+
+`symbol`, `startTime`, `endTime`, `future`, and `answer` are reveal-only fields. The client **must not** read, log, or expose these fields before the user's `given` value has been recorded for that question.
+
+This is enforced by the fixture test in `validate.py` (check [2]).
+
+---
 
 ## SessionRecord
+
+Schema: `schemas/session-record.schema.json`
 
 ```json
 {
   "schemaVersion": 1,
-  "questionId": "stable-question-hash",
+  "questionId": "fx6750fa3dc0",
   "given": "up",
   "answer": "up",
   "correct": true,
   "responseMs": 834,
-  "answeredAt": "2026-08-15T20:00:00Z"
+  "answeredAt": "2026-08-16T12:00:00Z"
 }
 ```
 
-客户端必须以 `answer` 与 `given` 的相等性计算 `correct`，并可在导入时复算验证。
-未知字段应被忽略，以保证旧客户端能读取未来新增的展示元数据。
+**Field rules**
 
-## 兼容性验收
-
-每次修改题库或统计规则时，PWA 与 Unity 必须针对同一组 fixture 验证：
-
-1. 正确方向相同；
-2. 同一组 `SessionRecord` 的总命中率相同；
-3. 按资产类别、周期和预测跨度的分组统计相同；
-4. 作答前 UI 不渲染 `symbol`、`startTime` 或 `endTime`；
-5. 揭晓后 UI 显示三者，并以设备语言格式化日期；
-6. **作答前客户端不得读取、记录或以任何方式暴露 `future`、`answer`、`symbol`、`startTime` 或 `endTime` 字段。** fixture 测试须模拟提交动作，并断言这些字段仅在 `given` 被写入后才被访问。
-
-## 统计阈值
-
-下列统计仅在样本量满足阈值后才展示；未满足时显示"暂无足够数据"，不得显示基于
-极少样本的百分比。
-
-| 统计项 | 最低样本量 |
+| Field | Rule |
 |---|---|
-| 总命中率 | 1（任意样本均可展示） |
-| 按资产类别 / 周期 / 预测跨度分组 | 每组 ≥ 20 |
-| 决策风格（偏多偏空、反应速度等） | 总计 ≥ 30 |
+| `schemaVersion` | Must be `1` |
+| `questionId` | Matches `QuestionDefinition.id` |
+| `given` | User's call: `"up"` or `"down"` |
+| `answer` | Copied from `QuestionDefinition.answer` at answer time |
+| `correct` | Must equal `(given == answer)`. Clients may recompute on import to verify integrity. |
+| `responseMs` | Milliseconds from question display to answer lock. Integer ≥ 0. |
+| `answeredAt` | ISO 8601 UTC timestamp. |
+
+Unknown fields must be ignored so that future display metadata does not break older clients.
+
+---
+
+## Manifest
+
+Schema: `schemas/manifest.schema.json`
+
+```json
+{
+  "version": 1,
+  "generatedAt": "2026-08-07T12:00:00+00:00",
+  "setupLength": 60,
+  "shards": [
+    {
+      "timeframe": "1d",
+      "file": "questions-1d.json",
+      "count": 456,
+      "assetClasses": ["equity"],
+      "horizons": [1, 5, 20]
+    }
+  ]
+}
+```
+
+The manifest version is incremented only for breaking shard-format changes. Clients check the version before loading shards.
+
+---
+
+## Encoding rules
+
+| Concern | Rule |
+|---|---|
+| Timestamps | Unix UTC seconds (integer). No device timezone stored. |
+| Direction enum | `"up"` or `"down"` only. No booleans, no localised strings as stored values. |
+| Prices | JSON number. Full precision from the pipeline. Display rounding is each client's responsibility. |
+| Volume | JSON integer. |
+| Unknown fields | Ignore on read. Forward-compatibility for both QuestionDefinition and SessionRecord. |
+
+---
+
+## Statistical thresholds
+
+Subcategory breakdowns are only surfaced once sample size is sufficient. Below the threshold, show "not enough data yet" — never a percentage from 2 answers.
+
+| Stat | Minimum sample |
+|---|---|
+| Total hit rate | 1 (any sample) |
+| By asset class / timeframe / horizon | ≥ 20 per group |
+| Decision style (bias, response time) | ≥ 30 total |
+
+---
+
+## Compatibility acceptance
+
+Every change to the question bank schema, scoring, or stats formula requires both clients to verify against the same fixture set before the change ships.
+
+| # | Check | Verified by |
+|---|---|---|
+| 1 | Fixture questions conform to `question-definition.schema.json` | `validate.py` check [1] |
+| 2 | `correct = (given == answer)` for every session record | `validate.py` check [2] |
+| 3 | Stats recomputed from sessions match `fixtures/expected.json` | `validate.py` check [3] |
+| 4 | Live manifest conforms to `manifest.schema.json` | `validate.py` check [4] |
+| 5 | First question of each live shard conforms to question schema | `validate.py` check [5] |
+| 6 | Before answering: client must not access `future`, `answer`, `symbol`, `startTime`, `endTime` | Code review + client-side guard |
+| 7 | After answering: reveal shows `symbol`, `startTime`, `endTime` formatted in device locale | UI acceptance test |
+
+Run `python shared/validate.py` from the `tickread-mobile` directory to execute checks 1–5 automatically.

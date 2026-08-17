@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "session-record.schema.json",
+  "title": "SessionRecord",
+  "description": "One user answer. correct must equal (given == answer) and can be recomputed on import to verify integrity.",
+  "type": "object",
+  "required": ["schemaVersion", "questionId", "given", "answer", "correct", "responseMs", "answeredAt"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [1]
+    },
+    "questionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Matches QuestionDefinition.id."
+    },
+    "given": {
+      "type": "string",
+      "enum": ["up", "down"],
+      "description": "The direction the user called."
+    },
+    "answer": {
+      "type": "string",
+      "enum": ["up", "down"],
+      "description": "The correct direction, copied from QuestionDefinition.answer at answer time."
+    },
+    "correct": {
+      "type": "boolean",
+      "description": "Must equal (given == answer). Clients may recompute this on import."
+    },
+    "responseMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Time from question display to answer lock, in milliseconds."
+    },
+    "answeredAt": {
+      "type": "string",
+      "description": "ISO 8601 UTC timestamp of when the answer was locked."
+    }
+  },
+  "additionalProperties": true,
+  "description": "Unknown fields must be ignored to allow future display metadata without breaking older clients."
+}

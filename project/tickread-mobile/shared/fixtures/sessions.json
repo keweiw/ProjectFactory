@@ -1,0 +1,47 @@
+[
+  {
+    "schemaVersion": 1,
+    "questionId": "fx6750fa3dc0",
+    "given": "up",
+    "answer": "up",
+    "correct": true,
+    "responseMs": 1200,
+    "answeredAt": "2026-08-16T12:00:00Z"
+  },
+  {
+    "schemaVersion": 1,
+    "questionId": "fx3fc326f9b5",
+    "given": "up",
+    "answer": "down",
+    "correct": false,
+    "responseMs": 1200,
+    "answeredAt": "2026-08-16T12:00:00Z"
+  },
+  {
+    "schemaVersion": 1,
+    "questionId": "fx5e43136b86",
+    "given": "up",
+    "answer": "up",
+    "correct": true,
+    "responseMs": 1200,
+    "answeredAt": "2026-08-16T12:00:00Z"
+  },
+  {
+    "schemaVersion": 1,
+    "questionId": "fx7a1306fb5e",
+    "given": "down",
+    "answer": "down",
+    "correct": true,
+    "responseMs": 1200,
+    "answeredAt": "2026-08-16T12:00:00Z"
+  },
+  {
+    "schemaVersion": 1,
+    "questionId": "fx604c734cd0",
+    "given": "down",
+    "answer": "up",
+    "correct": false,
+    "responseMs": 1200,
+    "answeredAt": "2026-08-16T12:00:00Z"
+  }
+]

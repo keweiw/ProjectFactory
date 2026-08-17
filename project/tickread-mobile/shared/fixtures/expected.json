@@ -1,0 +1,56 @@
+{
+  "total": 5,
+  "correct": 3,
+  "hit_rate": 0.6,
+  "by_asset_class": {
+    "equity": {
+      "total": 4,
+      "correct": 2,
+      "hit_rate": 0.5
+    },
+    "crypto": {
+      "total": 1,
+      "correct": 1,
+      "hit_rate": 1.0
+    }
+  },
+  "by_timeframe": {
+    "1d": {
+      "total": 2,
+      "correct": 1,
+      "hit_rate": 0.5
+    },
+    "1h": {
+      "total": 1,
+      "correct": 1,
+      "hit_rate": 1.0
+    },
+    "1m": {
+      "total": 1,
+      "correct": 1,
+      "hit_rate": 1.0
+    },
+    "1mo": {
+      "total": 1,
+      "correct": 0,
+      "hit_rate": 0.0
+    }
+  },
+  "by_horizon": {
+    "5": {
+      "total": 2,
+      "correct": 1,
+      "hit_rate": 0.5
+    },
+    "1": {
+      "total": 2,
+      "correct": 1,
+      "hit_rate": 0.5
+    },
+    "20": {
+      "total": 1,
+      "correct": 1,
+      "hit_rate": 1.0
+    }
+  }
+}
