@@ -14,7 +14,7 @@
     },
     "assetClass": {
       "type": "string",
-      "enum": ["equity", "crypto", "forex", "commodity", "index"]
+      "enum": ["equity", "etf_index", "future", "crypto"]
     },
     "timeframe": {
       "type": "string",

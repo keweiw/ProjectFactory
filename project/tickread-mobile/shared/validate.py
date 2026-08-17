@@ -7,7 +7,8 @@ Checks:
   [3] correct = (given == answer) for every fixture session
   [4] Stats recomputed from sessions match fixtures/expected.json exactly
   [5] Live bank manifest conforms to manifest schema (skipped if not found)
-  [6] First question of each live shard conforms to QuestionDefinition schema
+  [6] Every question in each live shard conforms to QuestionDefinition schema
+  [7] Fixture question reveal-only fields are inaccessible before given is recorded
 
 Run from the project root:
     python project/tickread-mobile/shared/validate.py
@@ -28,6 +29,8 @@ FIXTURES_DIR = os.path.join(HERE, "fixtures")
 
 _failures = []
 _checks = 0
+REVEAL_ONLY_FIELDS = ("future", "answer", "symbol", "startTime", "endTime")
+ASSET_CLASSES = ("equity", "etf_index", "future", "crypto")
 
 
 def _fail(msg):
@@ -114,7 +117,7 @@ def validate_question(q, path="question"):
             return
     _check_type(q["id"], "string", f"{path}.id")
     _check_type(q["assetClass"], "string", f"{path}.assetClass")
-    if q.get("assetClass") not in ("equity", "crypto", "forex", "commodity", "index"):
+    if q.get("assetClass") not in ASSET_CLASSES:
         _fail(f"{path}.assetClass: unexpected value '{q.get('assetClass')}'")
     _check_type(q["timeframe"], "string", f"{path}.timeframe")
     if q.get("timeframe") not in ("1m", "1h", "1d", "1mo"):
@@ -292,8 +295,52 @@ def check_fixtures():
             f"hit_rate={actual['hit_rate']}  "
             f"correct={actual['correct']}/{actual['total']}")
 
+    check_reveal_access_rule(questions, sessions)
     return questions
 
+
+class QuestionAccessGate:
+    """Reference lifecycle guard for the reveal-only contract."""
+
+    def __init__(self, question):
+        self._question = question
+        self.given = None
+
+    def read(self, field):
+        if field in REVEAL_ONLY_FIELDS and self.given is None:
+            raise PermissionError(f"{field} is unavailable before an answer is recorded")
+        return self._question[field]
+
+    def record_given(self, given):
+        if given not in ("up", "down"):
+            raise ValueError("given must be up or down")
+        self.given = given
+
+
+def check_reveal_access_rule(questions, sessions):
+    """Exercise the M0 lifecycle: setup first, reveal fields only after lock."""
+    by_id = {session["questionId"]: session for session in sessions}
+    _section("Reveal-only access guard")
+    before = len(_failures)
+    for question in questions:
+        gate = QuestionAccessGate(question)
+        for field in ("id", "assetClass", "timeframe", "horizon", "setup"):
+            gate.read(field)
+        for field in REVEAL_ONLY_FIELDS:
+            try:
+                gate.read(field)
+            except PermissionError:
+                continue
+            _fail(f"{question['id']}: {field} was readable before given was recorded")
+        session = by_id.get(question["id"])
+        if session is None:
+            _fail(f"{question['id']}: no fixture session records given")
+            continue
+        gate.record_given(session["given"])
+        for field in REVEAL_ONLY_FIELDS:
+            gate.read(field)
+    if len(_failures) == before:
+        _ok(f"{len(questions)} fixture questions block reveal-only fields until given is recorded")
 
 def check_live_bank(fixture_questions):
     manifest_path = os.path.join(TICKREAD_DATA, "manifest.json")
@@ -312,7 +359,7 @@ def check_live_bank(fixture_questions):
         _ok(f"manifest.json valid — version={manifest.get('version')}  "
             f"{len(shards)} shards  {total_q} total questions")
 
-    _section("Live bank: first question of each shard")
+    _section("Live bank: every question in each shard")
     for shard in manifest.get("shards", []):
         shard_path = os.path.join(TICKREAD_DATA, shard.get("file", ""))
         if not os.path.exists(shard_path):
@@ -323,9 +370,10 @@ def check_live_bank(fixture_questions):
             _fail(f"{shard['file']}: empty shard")
             continue
         before = len(_failures)
-        validate_question(rows[0], f"{shard['file']}[0]")
+        for index, row in enumerate(rows):
+            validate_question(row, f"{shard['file']}[{index}]")
         if len(_failures) == before:
-            _ok(f"{shard['file']}: {len(rows)} questions, first question valid")
+            _ok(f"{shard['file']}: {len(rows)} questions all valid")
 
     _section("Fixture question IDs are absent from live bank (no duplicates)")
     fixture_ids = {q["id"] for q in (fixture_questions or [])}

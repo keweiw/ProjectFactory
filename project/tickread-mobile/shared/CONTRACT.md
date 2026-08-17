@@ -56,7 +56,7 @@ Schema: `schemas/question-definition.schema.json`
 | Field | Rule |
 |---|---|
 | `id` | Stable opaque hash. Does not contain the symbol or dates. Prefix `fx` marks fixture questions. |
-| `assetClass` | Enum: `equity`, `crypto`, `forex`, `commodity`, `index` |
+| `assetClass` | Enum: `equity`, `etf_index`, `future`, `crypto` |
 | `timeframe` | Enum: `1m`, `1h`, `1d`, `1mo` |
 | `horizon` | Integer ≥ 1. Number of future bars being predicted. |
 | `symbol` | **Reveal-only.** Must not be shown before the user answers. |
@@ -169,9 +169,10 @@ Every change to the question bank schema, scoring, or stats formula requires bot
 | 1 | Fixture questions conform to `question-definition.schema.json` | `validate.py` check [1] |
 | 2 | `correct = (given == answer)` for every session record | `validate.py` check [2] |
 | 3 | Stats recomputed from sessions match `fixtures/expected.json` | `validate.py` check [3] |
-| 4 | Live manifest conforms to `manifest.schema.json` | `validate.py` check [4] |
-| 5 | First question of each live shard conforms to question schema | `validate.py` check [5] |
-| 6 | Before answering: client must not access `future`, `answer`, `symbol`, `startTime`, `endTime` | Code review + client-side guard |
-| 7 | After answering: reveal shows `symbol`, `startTime`, `endTime` formatted in device locale | UI acceptance test |
+| 4 | Before answering: reveal-only fields are inaccessible until `given` is recorded | `validate.py` access-guard check + client-side guard |
+| 5 | Live manifest conforms to `manifest.schema.json` | `validate.py` manifest check |
+| 6 | Every question in every live shard conforms to question schema | `validate.py` live-bank check |
+| 7 | Fixture IDs do not collide with live-bank IDs | `validate.py` collision check |
+| 8 | After answering: reveal shows `symbol`, `startTime`, `endTime` formatted in device locale | UI acceptance test |
 
 Run `python shared/validate.py` from the `tickread-mobile` directory to execute checks 1–5 automatically.
