@@ -44,9 +44,7 @@ function isQuestion(value) {
         typeof q.horizon === "number" &&
         Array.isArray(q.setup) &&
         q.setup.length > 0 &&
-        q.setup.every(isBar) &&
-        Array.isArray(q.future) &&
-        q.future.length > 0);
+        q.setup.every(isBar));
 }
 async function loadRound() {
     const base = "../tickread/code/data";
