@@ -1,0 +1,13 @@
+{
+  "name": "tickread — Market Intuition Training",
+  "short_name": "tickread",
+  "description": "Practice reading market direction from real historical price setups.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#151718",
+  "theme_color": "#151718",
+  "icons": [
+    { "src": "icons/tickread.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,7 +1,9 @@
 "use strict";
 const ROUND_SIZE = 10;
 const STORAGE_KEY = "tickread-mobile.records.v1";
+const THEME_KEY = "tickread-mobile.theme.v1";
 const SWIPE_THRESHOLD = 56;
+let updateReady = false;
 function byId(id) {
     const node = document.getElementById(id);
     if (!node)
@@ -20,6 +22,7 @@ const streak = byId("streak");
 const next = byId("next-button");
 const actions = byId("actions");
 const reportList = byId("report-list");
+const themeToggle = byId("theme-toggle");
 let deck = [];
 let records = [];
 let index = 0;
@@ -60,6 +63,72 @@ async function loadRound() {
         [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     return pool.slice(0, ROUND_SIZE);
+}
+async function activatePendingUpdate() {
+    if (!updateReady || !navigator.serviceWorker.controller)
+        return;
+    const registration = await navigator.serviceWorker.getRegistration("../");
+    if (!registration?.waiting)
+        return;
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    await new Promise((resolve) => {
+        navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true });
+    });
+    window.location.reload();
+    await new Promise(() => undefined);
+}
+function registerOfflineSupport() {
+    if (!("serviceWorker" in navigator))
+        return;
+    void navigator.serviceWorker
+        .register("../sw.js")
+        .then((registration) => {
+        const markUpdateReady = () => {
+            updateReady = true;
+            lifetime.textContent = "A fresh question bank is ready for your next round.";
+        };
+        if (registration.waiting)
+            markUpdateReady();
+        registration.addEventListener("updatefound", () => {
+            const installing = registration.installing;
+            if (!installing)
+                return;
+            installing.addEventListener("statechange", () => {
+                if (installing.state === "installed" && navigator.serviceWorker.controller)
+                    markUpdateReady();
+            });
+        });
+        navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data === "tickread-bank-updated")
+                markUpdateReady();
+        });
+        registration.active?.postMessage({ type: "CHECK_BANK" });
+    })
+        .catch(() => {
+        // The game remains usable online if the browser declines service workers.
+    });
+}
+function applyTheme(theme) {
+    if (theme)
+        document.documentElement.dataset.theme = theme;
+    else
+        delete document.documentElement.dataset.theme;
+    const isLight = theme
+        ? theme === "light"
+        : window.matchMedia("(prefers-color-scheme: light)").matches;
+    themeToggle.textContent = isLight ? "Use dark theme" : "Use light theme";
+    themeToggle.setAttribute("aria-pressed", String(isLight));
+}
+function initialiseTheme() {
+    const storedTheme = localStorage.getItem(THEME_KEY);
+    applyTheme(storedTheme === "light" || storedTheme === "dark" ? storedTheme : null);
+    themeToggle.addEventListener("click", () => {
+        const isLight = document.documentElement.dataset.theme === "light" ||
+            (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: light)").matches);
+        const nextTheme = isLight ? "dark" : "light";
+        localStorage.setItem(THEME_KEY, nextTheme);
+        applyTheme(nextTheme);
+    });
 }
 function stored() {
     try {
@@ -164,6 +233,9 @@ function answer(given) {
     records.push(record);
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...stored(), record]));
     actions.hidden = true;
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        navigator.vibrate?.(record.correct ? [18, 30, 18] : [45]);
+    }
     animateReveal(q, record);
 }
 function animateReveal(q, r) {
@@ -180,6 +252,9 @@ function animateReveal(q, r) {
             result.className = `result ${r.correct ? "good" : "bad"}`;
             result.innerHTML = `<strong>${r.correct ? "Correct" : "Not quite"} — price ${move >= 0 ? "rose" : "fell"} ${Math.abs(move).toFixed(1)}%</strong><br>${q.symbol} · ${q.timeframe} · ${range}<br>Your call: ${r.given === "up" ? "Bullish" : "Bearish"} · ${(r.responseMs / 1000).toFixed(1)} s`;
             result.hidden = false;
+            if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                navigator.vibrate?.(r.correct ? [12, 24, 12] : [32, 20, 32]);
+            }
             next.textContent = index === deck.length - 1 ? "View round report" : "Next question";
             window.setTimeout(() => (next.hidden = false), 2200);
         }
@@ -208,6 +283,7 @@ function showReport() {
 // --- event wiring ---
 byId("start-button").addEventListener("click", async () => {
     try {
+        await activatePendingUpdate();
         deck = await loadRound();
         if (deck.length < ROUND_SIZE)
             throw new Error("Not enough questions");
@@ -255,3 +331,5 @@ byId("home-button").addEventListener("click", () => {
     show(home);
 });
 updateLifetime();
+initialiseTheme();
+registerOfflineSupport();
