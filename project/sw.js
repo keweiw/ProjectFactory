@@ -1,4 +1,4 @@
-const SHELL_CACHE = "tickread-shell-v1";
+const SHELL_CACHE = "tickread-shell-v2";
 const BANK_CACHE = "tickread-bank-v1";
 const APP_SHELL = [
   "./tickread-mobile/",
@@ -36,11 +36,18 @@ self.addEventListener("install", (event) => {
   event.waitUntil(Promise.all([
     caches.open(SHELL_CACHE).then((cache) => cache.addAll(APP_SHELL)),
     refreshBank()
-  ]));
+  ]).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(Promise.all([
+    self.clients.claim(),
+    caches.keys().then((keys) => Promise.all(
+      keys
+        .filter((key) => key.startsWith("tickread-shell-") && key !== SHELL_CACHE)
+        .map((key) => caches.delete(key))
+    ))
+  ]));
 });
 
 self.addEventListener("message", (event) => {
@@ -52,17 +59,20 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || event.request.method !== "GET") return;
   const isBank = url.pathname.includes("/tickread/code/data/");
-  const cacheName = isBank ? BANK_CACHE : SHELL_CACHE;
-  event.respondWith(caches.open(cacheName).then(async (cache) => {
+  event.respondWith(caches.open(isBank ? BANK_CACHE : SHELL_CACHE).then(async (cache) => {
     const cached = await cache.match(event.request);
     const network = fetch(event.request).then(async (response) => {
       if (response.ok) await cache.put(event.request, response.clone());
       return response;
     });
-    if (cached) {
+    if (isBank && cached) {
       event.waitUntil(network.catch(() => undefined));
       return cached;
     }
-    return network;
+    if (isBank) return network;
+    return network.catch(() => {
+      if (cached) return cached;
+      throw new Error("App shell is unavailable");
+    });
   }));
 });
