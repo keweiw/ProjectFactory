@@ -5,6 +5,8 @@ on:
     branches: [master]
     paths:
       - "project/tickread/code/**"
+      - "project/tickread-mobile/**"
+      - "project/sw.js"
       - "project/16personality/**"
       - ".github/workflows/deploy-tickread.yml"
   # Build and test pull requests too, so a PR has something to go green on.
@@ -13,6 +15,8 @@ on:
     branches: [master]
     paths:
       - "project/tickread/code/**"
+      - "project/tickread-mobile/**"
+      - "project/sw.js"
       - "project/16personality/**"
       - ".github/workflows/deploy-tickread.yml"
   workflow_dispatch:
@@ -65,6 +69,15 @@ jobs:
           cp -r project/tickread/code/data _site/data
           cp -r project/tickread/code/src _site/src
           cp -r project/tickread/code/dist/src _site/dist/src
+          # The mobile PWA is published alongside the existing desktop site.
+          # Its Service Worker owns the Pages root so it can cache the shared
+          # question bank at tickread/code/data as well as its own app shell.
+          mkdir -p _site/tickread-mobile/dist _site/tickread-mobile/icons _site/tickread/code
+          cp project/tickread-mobile/index.html project/tickread-mobile/style.css project/tickread-mobile/manifest.webmanifest _site/tickread-mobile/
+          cp -r project/tickread-mobile/dist/. _site/tickread-mobile/dist/
+          cp -r project/tickread-mobile/icons/. _site/tickread-mobile/icons/
+          cp project/sw.js _site/sw.js
+          cp -r project/tickread/code/data _site/tickread/code/data
 
           mkdir -p _site/16personality/dist
           cp project/16personality/index.html project/16personality/style.css _site/16personality/
