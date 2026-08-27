@@ -193,9 +193,13 @@ function mount(): void {
   // overwrites it (e.g. after showReport() calls updateLifetime()).
   function updateHomeStat(): void {
     const records = history();
-    lifetime.textContent = records.length
+    const nextText = records.length
       ? `${percent(records)}% lifetime hit rate · ${records.length} calls · streak ${currentStreak(records)}`
       : "No history yet";
+    // This function is also the MutationObserver callback. Avoid writing the
+    // same value back into the observed node, which would schedule another
+    // mutation forever and starve clicks on the home screen.
+    if (lifetime.textContent !== nextText) lifetime.textContent = nextText;
   }
 
   const render = async (): Promise<void> => {
